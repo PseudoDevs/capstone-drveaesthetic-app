@@ -4,12 +4,10 @@ import { DarkTheme, DefaultTheme, Theme, ThemeProvider } from '@react-navigation
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
-import { Appearance, Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { NAV_THEME } from '~/lib/constants';
-import { useColorScheme } from '~/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
-import { ThemeToggle } from '~/components/ThemeToggle';
-import { setAndroidNavigationBar } from '~/lib/android-navigation-bar';
+import { AuthStorage, AuthService } from '~/lib/api';
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
@@ -25,25 +23,92 @@ export {
   ErrorBoundary,
 } from 'expo-router';
 
-const usePlatformSpecificSetup = Platform.select({
-  web: useSetWebBackgroundClassName,
-  android: useSetAndroidNavigationBar,
-  default: noop,
-});
-
 export default function RootLayout() {
-  usePlatformSpecificSetup();
-  const { isDarkColorScheme } = useColorScheme();
+  React.useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.documentElement.classList.add('bg-background');
+    }
+    
+    // Initialize auth
+    const initializeAuth = async () => {
+      try {
+        // Initialize auth token from storage
+        const token = await AuthStorage.getToken();
+        if (token) {
+          AuthService.setToken(token);
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      }
+    };
+    
+    initializeAuth();
+  }, []);
 
   return (
-    <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-      <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
+    <ThemeProvider value={LIGHT_THEME}>
+      <StatusBar style="dark" />
       <Stack>
         <Stack.Screen
           name='index'
           options={{
-            title: 'Starter Base',
-            headerRight: () => <ThemeToggle />,
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='login'
+          options={{
+            title: 'Sign In',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='signup'
+          options={{
+            title: 'Sign Up',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='home'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='about'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='profile'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='services'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='appointments'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='chat'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='chat/[id]'
+          options={{
+            headerShown: false,
           }}
         />
       </Stack>
@@ -52,20 +117,3 @@ export default function RootLayout() {
   );
 }
 
-const useIsomorphicLayoutEffect =
-  Platform.OS === 'web' && typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect;
-
-function useSetWebBackgroundClassName() {
-  useIsomorphicLayoutEffect(() => {
-    // Adds the background color to the html element to prevent white background on overscroll.
-    document.documentElement.classList.add('bg-background');
-  }, []);
-}
-
-function useSetAndroidNavigationBar() {
-  React.useLayoutEffect(() => {
-    setAndroidNavigationBar(Appearance.getColorScheme() ?? 'light');
-  }, []);
-}
-
-function noop() {}

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:reactnativereusables.com)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:reactnavigation.org)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:capstone-aestethic.dev)",
+      "WebFetch(domain:filamentphp.com)",
+      "WebFetch(domain:drveaestheticclinic.online)",
+      "Bash(npm install:*)",
+      "Bash(npm run android:*)",
+      "Bash(npx expo:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm uninstall @react-native-google-signin/google-signin)",
+      "WebFetch(domain:capstone-drveaestheticclinic.dev)",
+      "Bash(timeout 10s npm run dev)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
