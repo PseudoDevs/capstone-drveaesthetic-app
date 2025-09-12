@@ -153,6 +153,60 @@ export interface PaginatedResponse<T> {
   total: number;
 }
 
+export interface MobileChatPagination {
+  current_page: string;
+  last_page: string;
+  per_page: string;
+  total: string;
+  has_more: string;
+}
+
+export interface MobileChatConversationsResponse {
+  success: boolean;
+  data: {
+    conversations: string;
+    pagination: MobileChatPagination;
+  };
+}
+
+export interface MobileChatMessagesResponse {
+  success: boolean;
+  data: {
+    messages: string;
+    chat_info: {
+      id: string;
+      other_user: {
+        id: string;
+        name: string;
+        avatar: string;
+        role: string;
+      };
+    };
+    pagination: MobileChatPagination;
+  };
+}
+
+export interface MobileChatSendMessageResponse {
+  success: boolean;
+  data: {
+    message: {
+      id: string;
+      message: string;
+      sender_id: string;
+      sender: {
+        id: string;
+        name: string;
+        avatar: string;
+      };
+      is_mine: boolean;
+      is_read: boolean;
+      created_at: string;
+      time_ago: string;
+    };
+    chat_id: number;
+  };
+}
+
 export interface Chat {
   id: number;
   staff_id: number;

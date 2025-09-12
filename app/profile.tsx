@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { View, ScrollView, Pressable, Alert, Platform } from 'react-native';
+import { View, ScrollView, Pressable, Alert, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
@@ -43,6 +44,9 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+
+  // Avatar upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
 
   React.useEffect(() => {
     const loadUserData = async () => {
@@ -283,6 +287,155 @@ export default function ProfileScreen() {
     Alert.alert('Help & Support', 'Contact us at support@drveaestheticclinic.online or call +63 123 456 7890');
   };
 
+  const handleAvatarUpload = async () => {
+    try {
+      // Request permissions
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+        return;
+      }
+
+      // Show options for camera or gallery
+      Alert.alert(
+        'Select Avatar',
+        'Choose how you want to select your avatar',
+        [
+          {
+            text: 'Camera',
+            onPress: async () => {
+              const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+              if (cameraPermission.granted) {
+                pickImageFromCamera();
+              } else {
+                Alert.alert('Permission Required', 'Camera permission is required!');
+              }
+            },
+          },
+          {
+            text: 'Photo Library',
+            onPress: () => pickImageFromLibrary(),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      Alert.alert('Error', 'Failed to open image picker');
+    }
+  };
+
+  const pickImageFromCamera = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadAvatarImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const pickImageFromLibrary = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadAvatarImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Gallery error:', error);
+      Alert.alert('Error', 'Failed to select image');
+    }
+  };
+
+  const uploadAvatarImage = async (imageUri: string) => {
+    if (!user) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      console.log('=== UPLOADING AVATAR ===');
+      console.log('Image URI:', imageUri);
+      console.log('User ID:', user?.data?.id || user?.id);
+      console.log('ProfileService available:', !!ProfileService);
+      console.log('ProfileService.uploadAvatar available:', !!ProfileService?.uploadAvatar);
+      console.log('========================');
+
+      // Ensure authentication token is set
+      const token = await AuthStorage.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      AuthService.setToken(token);
+
+      // Get user ID
+      const userId = user?.data?.id || user?.id;
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
+
+      // Upload avatar - Import ProfileService directly to ensure it's available
+      const { ProfileService: PS } = await import('~/lib/api');
+      const updatedUser = await PS.uploadAvatar(userId, imageUri);
+      
+      console.log('=== AVATAR UPLOAD SUCCESS ===');
+      console.log('Updated user:', updatedUser);
+      console.log('New avatar URL:', updatedUser?.avatar);
+      console.log('Avatar URL sample format check:', updatedUser?.avatar?.includes('drveaestheticclinic.online/storage/avatars/'));
+      console.log('=============================');
+
+      // Store only the filename from the API response
+      const avatarFilename = updatedUser?.avatar;
+      
+      console.log('=== SAVING AVATAR DATA ===');
+      console.log('Avatar filename from API:', avatarFilename);
+      console.log('Full avatar URL will be:', avatarFilename ? `https://drveaestheticclinic.online/storage/avatars/${avatarFilename}` : 'No avatar');
+      console.log('==========================');
+
+      // Update local state and storage with filename only
+      const userDataToSave = {
+        ...user,
+        ...(user?.data ? { data: { ...user.data, ...updatedUser } } : updatedUser),
+        // Store filename, not full URL
+        avatar: avatarFilename
+      };
+
+      setUser(userDataToSave);
+      await AuthStorage.saveUser(userDataToSave);
+
+      Alert.alert('Success', 'Avatar updated successfully!');
+
+    } catch (error: any) {
+      console.log('=== AVATAR UPLOAD ERROR ===');
+      console.error('Full error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response status:', error.response?.status);
+      console.log('===========================');
+
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload avatar';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Sign Out',
@@ -356,12 +509,37 @@ export default function ProfileScreen() {
         <View className="px-6 mb-6">
           <Card>
             <CardContent className="items-center py-6">
-              <Avatar className="w-24 h-24 mb-4">
-                <AvatarImage source={{ uri: (user?.data || user)?.avatar }} />
-                <AvatarFallback>
-                  <Text className="text-2xl">{(user?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
-                </AvatarFallback>
-              </Avatar>
+              <TouchableOpacity onPress={handleAvatarUpload} disabled={isUploadingAvatar}>
+                <View className="relative">
+                  <Avatar className="w-24 h-24 mb-4">
+                    <AvatarImage 
+                      source={{ 
+                        uri: (user?.data || user)?.avatar 
+                          ? `https://drveaestheticclinic.online/storage/${(user?.data || user)?.avatar}`
+                          : undefined,
+                        // Add cache control for better image loading
+                        cache: 'reload'
+                      }} 
+                      style={{ borderRadius: 48 }}
+                    />
+                    <AvatarFallback>
+                      <Text className="text-2xl">{(user?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  {/* Upload indicator overlay */}
+                  {isUploadingAvatar && (
+                    <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
+                      <Text className="text-white text-sm">📸</Text>
+                    </View>
+                  )}
+                  
+                  {/* Camera icon overlay */}
+                  <View className="absolute -bottom-2 -right-2 bg-primary rounded-full w-8 h-8 items-center justify-center border-2 border-background">
+                    <Text className="text-primary-foreground text-sm">📸</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
 
               <Text className="text-2xl font-bold text-foreground mb-1">{(user?.data || user)?.name || 'User'}</Text>
               <Text className="text-muted-foreground mb-2">{(user?.data || user)?.email || 'user@example.com'}</Text>
@@ -375,7 +553,7 @@ export default function ProfileScreen() {
                 <Text className="text-sm text-muted-foreground mb-4">📍 {(user?.data || user).address}</Text>
               )}
 
-              <Button onPress={handleEditProfile}>
+              <Button onPress={handleEditProfile} className="bg-primary-gradient">
                 <Text>Edit Profile</Text>
               </Button>
             </CardContent>
@@ -499,7 +677,7 @@ export default function ProfileScreen() {
           className="px-6"
           style={{ paddingBottom: Math.max(insets.bottom + 100, 120) }}
         >
-          <Button variant="destructive" onPress={handleLogout} className="w-full">
+          <Button variant="destructive" onPress={handleLogout} className="w-full bg-primary-gradient">
             <Text>Sign Out</Text>
           </Button>
         </View>

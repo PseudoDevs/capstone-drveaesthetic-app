@@ -5,9 +5,9 @@ import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { ChatService, AuthStorage, Message, AuthService, Chat as ChatType } from '~/lib/api';
-import { PusherService, subscribeToChatChannel } from '~/lib/config/pusher';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft } from '~/lib/icons/ChevronLeft';
+import EventSource from 'react-native-sse';
 
 export default function IndividualChatScreen() {
   const { id } = useLocalSearchParams();
@@ -20,6 +20,7 @@ export default function IndividualChatScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
   const [newMessage, setNewMessage] = React.useState('');
+  const [eventSource, setEventSource] = React.useState<EventSource | null>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
 
@@ -39,10 +40,9 @@ export default function IndividualChatScreen() {
         return;
       }
 
-      // Set token in API client and Pusher
+      // Set token in API client
       const { AuthService: ImportedAuthService } = await import('~/lib/api');
       ImportedAuthService.setToken(token);
-      PusherService.setAuthToken(token);
 
       console.log('=== INDIVIDUAL CHAT AUTH DEBUG ===');
       console.log('Chat ID:', chatId);
@@ -52,41 +52,16 @@ export default function IndividualChatScreen() {
 
       setCurrentUser(userData);
 
-      // Load chat details
-      const chatDetails = await ChatService.getChat(chatId);
-      setChat(chatDetails);
-
       // Load messages for this conversation using mobile API
-      const messagesResponse = await ChatService.getMessages(chatId);
-      const messagesList = Array.isArray(messagesResponse) 
-        ? messagesResponse 
-        : (Array.isArray(messagesResponse.data) ? messagesResponse.data : []);
+      const messagesResult = await ChatService.getConversationMessages(chatId);
+      const messagesList = messagesResult.messages || [];
       
       setMessages(messagesList.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
 
       const userId = userData?.data?.id || userData?.id;
-      if (userId) {
-
-        // Set up real-time messaging
-        const chatChannel = subscribeToChatChannel(parseInt(chatId), userId);
-        
-        chatChannel.bind('message-sent', (data: any) => {
-          console.log('💬 New message received:', data);
-          setMessages(prevMessages => {
-            // Avoid duplicate messages
-            const exists = prevMessages.some(msg => msg.id === data.id);
-            if (exists) return prevMessages;
-            
-            return [...prevMessages, data].sort((a, b) => 
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-          });
-          
-          // Scroll to bottom when new message arrives
-          setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        });
+      if (userId && token) {
+        // Set up SSE for real-time messaging
+        setupSSE(token, chatId);
       }
 
     } catch (error: any) {
@@ -106,9 +81,9 @@ export default function IndividualChatScreen() {
     loadChatData();
 
     return () => {
-      // Cleanup Pusher subscriptions
-      if (chatId) {
-        PusherService.unsubscribeFromChannel(`private-chat.${chatId}`);
+      // Cleanup SSE connection
+      if (eventSource) {
+        eventSource.close();
       }
     };
   }, [chatId]);
@@ -120,8 +95,59 @@ export default function IndividualChatScreen() {
     }, 100);
   }, [messages]);
 
+  const setupSSE = (token: string, chatId: string) => {
+    // Close existing SSE connection
+    if (eventSource) {
+      eventSource.close();
+    }
+
+    try {
+      const newEventSource = ChatService.createMessageStream(token, chatId);
+
+      newEventSource.onopen = () => {
+        console.log('✅ SSE connected for chat:', chatId);
+      };
+
+      newEventSource.onmessage = (event) => {
+        try {
+          const messageData = JSON.parse(event.data);
+          console.log('💬 New message received via SSE:', messageData);
+          
+          setMessages(prevMessages => {
+            // Avoid duplicate messages
+            const exists = prevMessages.some(msg => msg.id === messageData.id);
+            if (exists) return prevMessages;
+            
+            return [...prevMessages, messageData].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          });
+          
+          // Auto scroll to bottom
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        } catch (parseError) {
+          console.error('Failed to parse SSE message:', parseError);
+        }
+      };
+
+      newEventSource.onerror = (error) => {
+        console.error('❌ SSE connection error:', error);
+        // Attempt to reconnect after a delay
+        setTimeout(() => {
+          setupSSE(token, chatId);
+        }, 5000);
+      };
+
+      setEventSource(newEventSource);
+    } catch (error) {
+      console.error('Failed to setup SSE:', error);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !chat || isSending) return;
+    if (!newMessage.trim() || isSending) return;
 
     const messageText = newMessage.trim();
     setNewMessage('');
@@ -129,8 +155,6 @@ export default function IndividualChatScreen() {
 
     try {
       const messageData = {
-        conversation_id: chatId,
-        receiver_id: chat.staff?.id || 0,
         message: messageText,
         message_type: 'text',
       };
@@ -201,13 +225,11 @@ export default function IndividualChatScreen() {
           </Button>
           <View className="flex-1">
             <Text className="text-xl font-bold text-foreground">
-              {chat?.staff?.name || 'Loading...'}
+              Dr. Ve Aesthetic Clinic
             </Text>
-            {chat?.staff?.role && (
-              <Text className="text-sm text-muted-foreground">
-                {chat.staff.role}
-              </Text>
-            )}
+            <Text className="text-sm text-muted-foreground">
+              Chat with our staff
+            </Text>
           </View>
         </View>
       </View>

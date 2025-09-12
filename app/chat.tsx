@@ -2,32 +2,36 @@ import * as React from 'react';
 import { View, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
-import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
-import { Button } from '~/components/ui/button';
-import { Badge } from '~/components/ui/badge';
 import { Input } from '~/components/ui/input';
+import { Button } from '~/components/ui/button';
 import { BottomNavigation } from '~/components/BottomNavigation';
-import { ChatService, AuthStorage, Chat as ChatType, Staff, Message, AuthService } from '~/lib/api';
-import { PusherService, subscribeToChatChannel, subscribeToUserChannel } from '~/lib/config/pusher';
+import { ChatService, AuthStorage, Message, AuthService } from '~/lib/api';
 import { router } from 'expo-router';
+import { ChevronLeft } from '~/lib/icons/ChevronLeft';
+import { AppState, AppStateStatus } from 'react-native';
 
 export default function ChatScreen() {
-  const [chats, setChats] = React.useState<ChatType[]>([]);
-  const [availableStaff, setAvailableStaff] = React.useState<Staff[]>([]);
+  const [messages, setMessages] = React.useState<Message[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
-  const [showNewChatModal, setShowNewChatModal] = React.useState(false);
-  const [staffSearchQuery, setStaffSearchQuery] = React.useState('');
-  const [isSearchingStaff, setIsSearchingStaff] = React.useState(false);
+  const [newMessage, setNewMessage] = React.useState('');
+  const [staffId, setStaffId] = React.useState<number | null>(null);
+  const [currentChatId, setCurrentChatId] = React.useState<string | null>(null);
+  const [lastMessageId, setLastMessageId] = React.useState<string | null>(null);
+  const [isPolling, setIsPolling] = React.useState(false);
+  const pollingInterval = React.useRef<NodeJS.Timeout | null>(null);
+  const appState = React.useRef(AppState.currentState);
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
 
-  const loadChats = async () => {
+  const loadMessages = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check if user is authenticated and get user info
+      // Check if user is authenticated
       const token = await AuthStorage.getToken();
       const userData = await AuthStorage.getUser();
 
@@ -38,202 +42,389 @@ export default function ChatScreen() {
 
       setCurrentUser(userData);
 
-      // Set token in API client and Pusher
-      const { AuthService: ImportedAuthService, apiClient } = await import('~/lib/api');
+      // Set token in API client
+      const { AuthService: ImportedAuthService } = await import('~/lib/api');
       ImportedAuthService.setToken(token);
-      PusherService.setAuthToken(token);
 
-      console.log('=== AUTH DEBUG ===');
-      console.log('Token from storage:', !!token);
-      console.log('Token length:', token?.length || 0);
+      console.log('=== SINGLE CHAT AUTH DEBUG ===');
+      console.log('Token available:', !!token);
       console.log('User data:', !!userData);
-      console.log('Token preview:', token ? `${token.substring(0, 20)}...` : 'N/A');
-      console.log('API client has token:', apiClient.hasAuthToken());
-      console.log('API client token preview:', apiClient.getAuthTokenPreview());
-      console.log('==================');
+      console.log('==============================');
 
-      // Verify token is set in the API client by making a test request
-      try {
-        // Test authentication by trying to get user profile first
-        const userId = userData?.data?.id || userData?.id;
-        if (userId) {
-          console.log('Testing authentication with profile request...');
-          const { ProfileService } = await import('~/lib/api');
-          await ProfileService.getProfile(userId);
-          console.log('✅ Authentication verified');
-        }
-      } catch (authTestError: any) {
-        console.error('❌ Authentication test failed:', authTestError);
-        if (authTestError.response?.status === 401) {
-          throw authTestError; // Re-throw to trigger the main error handler
-        }
-      }
-
-      // Load chats
-      const chatsResponse = await ChatService.getChats();
-      const chatsList = Array.isArray(chatsResponse) 
-        ? chatsResponse 
-        : (Array.isArray(chatsResponse.data) ? chatsResponse.data : []);
+      // Try to get existing conversations first
+      console.log('Loading conversations...');
+      const conversations = await ChatService.getConversations(1, 1);
       
-      setChats(chatsList);
+      let messagesList = [];
+      
+      if (conversations && Array.isArray(conversations) && conversations.length > 0) {
+        // If conversation exists, load its messages
+        const conversation = conversations[0];
+        if (conversation && conversation.id) {
+          const chatId = conversation.id.toString();
+          console.log('Found existing conversation, loading messages for chat:', chatId);
+          setCurrentChatId(chatId);
+          
+          // Get staff ID from conversation
+          if (conversation.staff?.id) {
+            setStaffId(conversation.staff.id);
+          }
+          
+          try {
+            const messagesResult = await ChatService.getConversationMessages(chatId);
+            messagesList = messagesResult?.messages || [];
+          } catch (msgError) {
+            console.warn('Failed to load messages:', msgError);
+            messagesList = [];
+          }
+        }
+      } else {
+        // If no conversation exists, automatically get the single staff account
+        console.log('No existing conversation found, getting staff info...');
+        try {
+          const staffResponse = await ChatService.searchUsers();
+          const staffList = staffResponse?.data || staffResponse || [];
+          if (Array.isArray(staffList) && staffList.length > 0) {
+            // Automatically select the first (and only) staff member
+            const staff = staffList[0];
+            if (staff && staff.id) {
+              setStaffId(staff.id);
+              console.log('Auto-selected staff ID:', staff.id, 'Name:', staff.name || 'Unknown');
+            }
+          } else {
+            // Fallback: Use the default staff ID
+            const defaultStaffId = ChatService.getDefaultStaffId();
+            console.log('No staff found in search, using default staff ID:', defaultStaffId);
+            setStaffId(defaultStaffId);
+          }
+        } catch (staffError) {
+          console.warn('Could not get staff info, using default staff ID:', staffError);
+          const defaultStaffId = ChatService.getDefaultStaffId();
+          setStaffId(defaultStaffId);
+        }
+        messagesList = [];
+      }
+      
+      // Ensure messagesList is an array and sort safely
+      const safeMessagesList = Array.isArray(messagesList) ? messagesList : [];
+      setMessages(safeMessagesList.sort((a, b) => {
+        const dateA = a?.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b?.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateA - dateB;
+      }));
 
-      console.log('=== CHATS LOADED ===');
-      console.log('Chats:', JSON.stringify(chatsList, null, 2));
-      console.log('===================');
-
-      // Set up real-time connections for each chat
+      // Set up polling for real-time messages
       const userId = userData?.data?.id || userData?.id;
-      if (userId) {
-        // Subscribe to user channel for notifications
-        const userChannel = subscribeToUserChannel(userId);
-        userChannel.bind('new-message', (data: any) => {
-          console.log('🔔 New message received:', data);
-          // Refresh chats to show new message
-          loadChats();
-        });
-
-        // Subscribe to each chat channel
-        chatsList.forEach((chat) => {
-          const chatChannel = subscribeToChatChannel(chat.id, userId);
-          chatChannel.bind('message-sent', (data: any) => {
-            console.log('💬 Message sent in chat:', data);
-            // Update specific chat in real-time
-            setChats(prevChats => 
-              prevChats.map(c => 
-                c.id === chat.id 
-                  ? { ...c, last_message: data.message, last_message_time: data.created_at }
-                  : c
-              )
-            );
-          });
-        });
+      if (userId && token) {
+        startMessagePolling();
+      }
+      
+      // Track the last message ID for polling
+      if (Array.isArray(messagesList) && messagesList.length > 0) {
+        const lastMessage = messagesList[messagesList.length - 1];
+        if (lastMessage && lastMessage.id) {
+          setLastMessageId(lastMessage.id.toString());
+        }
       }
 
     } catch (error: any) {
-      console.error('Failed to load chats:', error);
-      console.error('Error details:', {
-        status: error.response?.status,
-        message: error.response?.data?.message,
-        config: error.config?.url
-      });
+      console.error('Failed to load messages:', error);
       
       if (error.response?.status === 401) {
-        console.warn('Authentication failed, clearing tokens and redirecting to login');
         await AuthStorage.clearAll();
-        try {
-          router.replace('/login');
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-        }
+        router.replace('/login');
         return;
       }
-      setError('Failed to load chats. Please try again.');
+      setError('Failed to load messages. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadAvailableStaff = async (query?: string) => {
-    setIsSearchingStaff(true);
+  const startMessagePolling = () => {
+    // Clear existing polling
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current);
+    }
+    
+    setIsPolling(true);
+    console.log('✅ Started message polling for real-time updates');
+    
+    // Poll every 2 seconds for new messages
+    pollingInterval.current = setInterval(async () => {
+      try {
+        // Only poll if app is in foreground and we have a chat
+        if (appState.current !== 'active') return;
+        
+        let newMessages: Message[] = [];
+        
+        if (currentChatId) {
+          // Poll specific conversation
+          const result = await ChatService.getConversationMessages(currentChatId, 1, 20);
+          newMessages = result.messages || [];
+        } else {
+          // Poll for any new conversations
+          const conversations = await ChatService.getConversations(1, 1);
+          if (conversations.length > 0) {
+            const conversation = conversations[0];
+            setCurrentChatId(conversation.id.toString());
+            if (conversation.staff?.id) {
+              setStaffId(conversation.staff.id);
+            }
+            const result = await ChatService.getConversationMessages(conversation.id.toString(), 1, 20);
+            newMessages = result.messages || [];
+          }
+        }
+        
+        // Check for new messages with proper null checks
+        if (newMessages && Array.isArray(newMessages) && newMessages.length > 0) {
+          setMessages(prevMessages => {
+            // Ensure prevMessages is an array
+            if (!prevMessages || !Array.isArray(prevMessages)) {
+              prevMessages = [];
+            }
+            
+            // Find truly new messages
+            const existingIds = new Set(prevMessages.map(msg => msg?.id?.toString()).filter(Boolean));
+            const freshMessages = newMessages.filter(msg => 
+              msg && msg.id && !existingIds.has(msg.id.toString())
+            );
+            
+            if (freshMessages.length > 0) {
+              console.log(`💬 Found ${freshMessages.length} new message(s) via polling`);
+              
+              // Check for intro messages
+              freshMessages.forEach(msg => {
+                if (msg && msg.message) {
+                  const isIntroMessage = msg.message.toLowerCase().includes('welcome') || 
+                                       msg.message.toLowerCase().includes('hello') ||
+                                       msg.message.toLowerCase().includes('good morning') ||
+                                       msg.message.toLowerCase().includes('good afternoon') ||
+                                       msg.message.toLowerCase().includes('good evening');
+                  
+                  if (isIntroMessage) {
+                    console.log('👋 Received automatic intro message from staff!');
+                  }
+                }
+              });
+              
+              const allMessages = [...prevMessages, ...freshMessages].sort((a, b) => {
+                const dateA = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                const dateB = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                return dateA - dateB;
+              });
+              
+              // Update last message ID
+              const lastMsg = allMessages[allMessages.length - 1];
+              if (lastMsg && lastMsg.id) {
+                setLastMessageId(lastMsg.id.toString());
+              }
+              
+              // Auto scroll to bottom
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 200);
+              
+              return allMessages;
+            }
+            
+            return prevMessages;
+          });
+        }
+        
+      } catch (error) {
+        console.warn('Polling error (will retry):', error);
+      }
+    }, 2000); // Poll every 2 seconds
+  };
+  
+  const stopMessagePolling = () => {
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current);
+      pollingInterval.current = null;
+    }
+    setIsPolling(false);
+    console.log('❌ Stopped message polling');
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || isSending) return;
+
+    const messageText = newMessage.trim();
+    setNewMessage('');
+    setIsSending(true);
+
     try {
-      console.log('=== SEARCHING STAFF ===');
-      console.log('Query:', query || 'No query (load all)');
-      console.log('======================');
+      // For single staff chat, we need to provide receiver_id
+      const messageData: any = {
+        message: messageText,
+      };
       
-      const staffResponse = await ChatService.searchStaff(query);
-      const staffList = Array.isArray(staffResponse) 
-        ? staffResponse 
-        : (Array.isArray(staffResponse.data) ? staffResponse.data : []);
+      // Add receiver_id - required for sending messages
+      if (staffId) {
+        messageData.receiver_id = staffId;
+      } else {
+        // Fallback: Use default staff ID if not available
+        const defaultStaffId = ChatService.getDefaultStaffId();
+        console.log('No staff ID available, using default staff ID:', defaultStaffId);
+        messageData.receiver_id = defaultStaffId;
+        setStaffId(defaultStaffId);
+      }
       
-      console.log('=== STAFF SEARCH RESULTS ===');
-      console.log('Found staff:', staffList.length);
-      console.log('Staff:', JSON.stringify(staffList, null, 2));
-      console.log('============================');
+      // Add chat_id if we have an existing conversation
+      if (currentChatId) {
+        messageData.chat_id = parseInt(currentChatId);
+      }
       
-      setAvailableStaff(staffList);
-    } catch (error) {
-      console.warn('Failed to load staff:', error);
-      setAvailableStaff([]);
+      console.log('Sending message with data:', messageData);
+
+      const response = await ChatService.sendMessage(messageData);
+      
+      console.log('Message sent successfully:', response);
+      
+      // Extract message and chat_id from response
+      const sentMessage = response.message;
+      const chatId = response.chatId;
+      
+      // Update chat ID if we got one from the response (for new conversations)
+      const isNewConversation = !currentChatId;
+      if (chatId && !currentChatId) {
+        setCurrentChatId(chatId.toString());
+        console.log('🎆 New conversation created! Chat ID:', chatId);
+        
+        // Start/restart polling for the new conversation
+        if (!isPolling) {
+          startMessagePolling();
+        }
+      }
+      
+      // Add message to local state immediately for better UX
+      setMessages(prevMessages => {
+        const exists = prevMessages.some(msg => 
+          msg.message === messageText && 
+          Math.abs(new Date(msg.created_at || new Date()).getTime() - Date.now()) < 5000
+        );
+        
+        if (exists) return prevMessages;
+        
+        return [...prevMessages, sentMessage].sort((a, b) => 
+          new Date(a.created_at || new Date()).getTime() - new Date(b.created_at || new Date()).getTime()
+        );
+      });
+      
+      // For new conversations, expect an automatic intro message from staff
+      if (isNewConversation) {
+        console.log('🔔 Expecting automatic intro message from staff...');
+        // Increase polling frequency briefly to catch intro message faster
+        setTimeout(() => {
+          if (pollingInterval.current) {
+            clearInterval(pollingInterval.current);
+            // Poll more frequently for 10 seconds to catch intro message
+            let fastPollCount = 0;
+            const fastPolling = setInterval(async () => {
+              fastPollCount++;
+              if (fastPollCount > 10) {
+                clearInterval(fastPolling);
+                startMessagePolling(); // Resume normal polling
+                return;
+              }
+              
+              // Fast poll logic (same as normal polling but every 1 second)
+              try {
+                if (currentChatId) {
+                  const result = await ChatService.getConversationMessages(currentChatId, 1, 20);
+                  const newMessages = result?.messages || [];
+                  
+                  setMessages(prevMessages => {
+                    // Ensure prevMessages is an array
+                    if (!prevMessages || !Array.isArray(prevMessages)) {
+                      prevMessages = [];
+                    }
+                    
+                    const existingIds = new Set(prevMessages.map(msg => msg?.id?.toString()).filter(Boolean));
+                    const freshMessages = (newMessages || []).filter(msg => 
+                      msg && msg.id && !existingIds.has(msg.id.toString())
+                    );
+                    
+                    if (freshMessages && freshMessages.length > 0) {
+                      console.log(`⚡ Fast poll found ${freshMessages.length} new message(s)`);
+                      const allMessages = [...prevMessages, ...freshMessages].sort((a, b) => {
+                        const dateA = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                        const dateB = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                        return dateA - dateB;
+                      });
+                      
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 100);
+                      
+                      return allMessages;
+                    }
+                    return prevMessages;
+                  });
+                }
+              } catch (error) {
+                console.warn('Fast polling error:', error);
+              }
+            }, 1000); // Poll every 1 second for intro message
+          }
+        }, 500);
+      }
+
+      // Auto scroll to bottom
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      Alert.alert(
+        'Send Failed',
+        error.response?.data?.message || 'Failed to send message. Please try again.'
+      );
+      setNewMessage(messageText);
     } finally {
-      setIsSearchingStaff(false);
+      setIsSending(false);
     }
   };
 
-  // Debounced search function
-  const debouncedStaffSearch = React.useCallback(
-    React.useMemo(() => {
-      const timeoutRef: { current: NodeJS.Timeout | null } = { current: null };
-      
-      return (query: string) => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        
-        timeoutRef.current = setTimeout(() => {
-          loadAvailableStaff(query.trim() || undefined);
-        }, 300); // 300ms debounce
-      };
-    }, []),
-    []
-  );
-
   React.useEffect(() => {
-    loadChats();
-    loadAvailableStaff();
+    loadMessages();
+    
+    // Set up app state change listener
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      console.log('App state changed:', appState.current, '->', nextAppState);
+      
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App came to foreground, resume polling
+        console.log('📱 App resumed, starting polling');
+        startMessagePolling();
+      } else if (nextAppState.match(/inactive|background/)) {
+        // App went to background, stop polling to save battery
+        console.log('🚫 App went to background, stopping polling');
+        stopMessagePolling();
+      }
+      
+      appState.current = nextAppState;
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Cleanup Pusher on unmount
+    // Cleanup on unmount
     return () => {
-      PusherService.disconnect();
+      stopMessagePolling();
+      subscription?.remove();
     };
   }, []);
 
-  // Handle search query changes
+  // Auto scroll when messages change
   React.useEffect(() => {
-    if (showNewChatModal) {
-      debouncedStaffSearch(staffSearchQuery);
-    }
-  }, [staffSearchQuery, showNewChatModal, debouncedStaffSearch]);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, [messages]);
 
-  const handleStartNewChat = async (staff: Staff) => {
-    try {
-      const userId = currentUser?.data?.id || currentUser?.id;
-      if (!userId) {
-        Alert.alert('Error', 'User not found');
-        return;
-      }
-
-      // Close the modal and clear search immediately (FB Messenger approach)
-      setShowNewChatModal(false);
-      setStaffSearchQuery('');
-
-      // Check if chat already exists
-      const existingChat = chats.find(chat => chat.staff?.id === staff.id);
-      
-      if (existingChat) {
-        // If chat exists, navigate directly to it
-        console.log('Existing chat found, navigating to:', existingChat.id);
-        router.push(`/chat/${existingChat.id}` as any);
-        return;
-      }
-
-      // If no existing chat, create a conversation ID and navigate
-      // Use a combination of user ID and staff ID as conversation identifier
-      const conversationId = `${userId}_${staff.id}`;
-      console.log('Creating new chat conversation:', conversationId);
-      
-      // Navigate directly to chat - the individual chat screen will handle message sending
-      router.push(`/chat/${conversationId}` as any);
-      
-    } catch (error: any) {
-      console.error('Failed to start chat:', error);
-      Alert.alert(
-        'Failed to Start Chat',
-        error.response?.data?.message || error.message || 'Could not start chat. Please try again.'
-      );
-    }
-  };
-
-  const formatTime = (dateString: string) => {
+  const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -242,136 +433,55 @@ export default function ChatScreen() {
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return formatTime(dateString);
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-  };
-
-  const handleChatPress = (chat: ChatType) => {
-    // Navigate to individual chat screen (to be implemented)
-    console.log('Navigate to chat:', chat.id);
-    router.push(`/chat/${chat.id}` as any);
+  const isMyMessage = (message: Message) => {
+    const userId = currentUser?.data?.id || currentUser?.id;
+    return message.sender_id === userId;
   };
 
   return (
-    <KeyboardAvoidingView 
-      className="flex-1 bg-secondary/30" 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="px-6 pt-12 pb-6">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-3xl font-bold text-foreground">Messages</Text>
-            <Button
-              onPress={() => {
-                const newState = !showNewChatModal;
-                setShowNewChatModal(newState);
-                if (!newState) {
-                  // Clear search when closing modal
-                  setStaffSearchQuery('');
-                }
-              }}
-              size="sm"
-              variant="outline"
-            >
-              <Text>{showNewChatModal ? 'Cancel' : 'New Chat'}</Text>
-            </Button>
+    <View className="flex-1 bg-secondary/30">
+      {/* Header */}
+      <View 
+        className="bg-background border-b border-border px-6 py-4"
+        style={{ paddingTop: insets.top + 16 }}
+      >
+        <View className="flex-row items-center">
+          <Button
+            onPress={() => router.back()}
+            variant="ghost"
+            size="sm"
+            className="mr-2 p-2"
+          >
+            <ChevronLeft size={20} className="text-foreground" />
+          </Button>
+          <View className="flex-1">
+            <Text className="text-xl font-bold text-foreground">
+              Dr. Ve Aesthetic Clinic
+            </Text>
+            <Text className="text-sm text-muted-foreground">
+              Chat with our staff
+            </Text>
           </View>
-
-          {/* New Chat Section */}
-          {showNewChatModal && (
-            <Card className="mb-4">
-              <CardHeader className="pb-3">
-                <CardTitle>Start New Chat</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Search Input */}
-                <View>
-                  <Input
-                    placeholder="Search staff by name, role, or specialization..."
-                    value={staffSearchQuery}
-                    onChangeText={setStaffSearchQuery}
-                    className="mb-3"
-                  />
-                  {isSearchingStaff && (
-                    <View className="flex-row items-center justify-center py-2">
-                      <ActivityIndicator size="small" />
-                      <Text className="text-muted-foreground ml-2">Searching...</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Staff Results */}
-                <View>
-                  <Text className="text-sm text-muted-foreground mb-3">
-                    {staffSearchQuery ? `Search results for "${staffSearchQuery}":` : 'Available staff members:'}
-                  </Text>
-                  
-                  {availableStaff.length > 0 ? (
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false} 
-                      className="space-x-3"
-                      contentContainerStyle={{ paddingRight: 20 }}
-                    >
-                      {availableStaff.map((staff) => (
-                        <Button
-                          key={staff.id}
-                          onPress={() => handleStartNewChat(staff)}
-                          variant="outline"
-                          className="mr-3 min-w-[120px]"
-                        >
-                          <View className="items-center">
-                            <Text className="text-sm font-medium">{staff.name}</Text>
-                            {staff.role && (
-                              <Badge variant="secondary" className="mt-1">
-                                <Text className="text-xs">{staff.role}</Text>
-                              </Badge>
-                            )}
-                            {staff.specialization && (
-                              <Text className="text-xs text-muted-foreground mt-1">
-                                {staff.specialization}
-                              </Text>
-                            )}
-                          </View>
-                        </Button>
-                      ))}
-                    </ScrollView>
-                  ) : !isSearchingStaff ? (
-                    <Text className="text-muted-foreground text-center py-4">
-                      {staffSearchQuery ? `No staff found matching "${staffSearchQuery}"` : 'No staff members available'}
-                    </Text>
-                  ) : null}
-                </View>
-              </CardContent>
-            </Card>
-          )}
         </View>
+      </View>
 
-        {/* Loading State */}
+      {/* Messages */}
+      <ScrollView
+        ref={scrollViewRef}
+        className="flex-1 px-4 py-4"
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+
         {isLoading && (
           <View className="flex-1 justify-center items-center py-12">
             <ActivityIndicator size="large" />
-            <Text className="text-muted-foreground mt-4">Loading chats...</Text>
+            <Text className="text-muted-foreground mt-4">Loading messages...</Text>
           </View>
         )}
 
-        {/* Error State */}
         {error && !isLoading && (
-          <View className="px-6 items-center py-12">
+          <View className="items-center py-12">
             <Text className="text-6xl mb-4">⚠️</Text>
             <Text className="text-lg font-semibold text-foreground mb-2">
               Something went wrong
@@ -379,80 +489,123 @@ export default function ChatScreen() {
             <Text className="text-muted-foreground text-center mb-6">
               {error}
             </Text>
-            <Button onPress={loadChats}>
+            <Button onPress={loadMessages}>
               <Text>Try Again</Text>
             </Button>
           </View>
         )}
 
-        {/* Chats List */}
         {!isLoading && !error && (
-          <View
-            className="px-6"
-            style={{ paddingBottom: Math.max(insets.bottom + 100, 120) }}
-          >
-            {chats.length > 0 ? (
-              <View className="gap-3">
-                {chats.map((chat) => (
-                  <Card key={chat.id} className="p-0">
-                    <Button
-                      onPress={() => handleChatPress(chat)}
-                      variant="ghost"
-                      className="w-full p-4 h-auto justify-start"
+          <View className="space-y-4" style={{ paddingBottom: 120 }}>
+            {messages.length > 0 ? (
+              messages.map((message, index) => (
+                <View
+                  key={`${message.id}-${index}`}
+                  className={`flex-row ${isMyMessage(message) ? 'justify-end' : 'justify-start'}`}
+                >
+                  <View
+                    className={`max-w-[80%] p-3 rounded-2xl ${
+                      isMyMessage(message)
+                        ? 'bg-primary rounded-br-md'
+                        : 'bg-background border border-border rounded-bl-md'
+                    }`}
+                  >
+                    <Text
+                      className={`text-sm ${
+                        isMyMessage(message) ? 'text-primary-foreground' : 'text-foreground'
+                      }`}
                     >
-                      <View className="flex-1">
-                        <View className="flex-row justify-between items-start mb-2">
-                          <Text className="text-lg font-semibold text-foreground">
-                            {chat.staff?.name || 'Staff Member'}
-                          </Text>
-                          {chat.last_message_time && (
-                            <Text className="text-sm text-muted-foreground">
-                              {formatDate(chat.last_message_time)}
-                            </Text>
-                          )}
-                        </View>
-                        
-                        {chat.staff?.role && (
-                          <Badge variant="secondary" className="self-start mb-2">
-                            <Text className="text-xs">{chat.staff.role}</Text>
-                          </Badge>
-                        )}
-
-                        {chat.last_message && (
-                          <Text className="text-sm text-muted-foreground text-left" numberOfLines={2}>
-                            {chat.last_message}
-                          </Text>
-                        )}
-                        
-                        {!chat.last_message && (
-                          <Text className="text-sm text-muted-foreground italic text-left">
-                            No messages yet
-                          </Text>
-                        )}
-                      </View>
-                    </Button>
-                  </Card>
-                ))}
-              </View>
+                      {message.message}
+                    </Text>
+                    <Text
+                      className={`text-xs mt-1 ${
+                        isMyMessage(message) ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {formatMessageTime(message.created_at)}
+                    </Text>
+                  </View>
+                </View>
+              ))
             ) : (
-              <View className="items-center py-12">
-                <Text className="text-6xl mb-4">💬</Text>
-                <Text className="text-lg font-semibold text-foreground mb-2">
-                  No conversations yet
-                </Text>
-                <Text className="text-muted-foreground text-center mb-6">
-                  Start a conversation with our staff members to get help with your aesthetic needs.
-                </Text>
-                <Button onPress={() => setShowNewChatModal(true)}>
-                  <Text>Start Your First Chat</Text>
-                </Button>
-              </View>
+              !isLoading && (
+                <View className="items-center py-12">
+                  <Text className="text-6xl mb-4">👋</Text>
+                  <Text className="text-lg font-semibold text-foreground mb-2">
+                    Welcome to Dr. Ve Aesthetic Clinic
+                  </Text>
+                  <Text className="text-muted-foreground text-center mb-4">
+                    Send your first message below and our staff will personally greet you with a warm welcome!
+                  </Text>
+                  <View className="bg-primary/10 border border-primary/20 rounded-lg p-3 mt-2">
+                    <Text className="text-sm text-primary text-center">
+                      ✨ You'll receive an automatic personalized greeting when you send your first message
+                    </Text>
+                  </View>
+                </View>
+              )
             )}
           </View>
         )}
       </ScrollView>
 
+      {/* Message Input - Fixed at bottom */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+        }}
+      >
+        <View className="bg-background border-t-2 border-border px-4 py-4" style={{ 
+          paddingBottom: Math.max(insets.bottom + 16, 24),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 5,
+        }}>
+          <View className="flex-row items-center space-x-3">
+            <Input
+              value={newMessage}
+              onChangeText={setNewMessage}
+              placeholder="Type a message..."
+              multiline
+              maxLength={1000}
+              className="flex-1 min-h-[44px] max-h-[120px] bg-white border-2 border-gray-300"
+              textAlignVertical="top"
+              onSubmitEditing={handleSendMessage}
+              blurOnSubmit={false}
+              style={{ 
+                paddingTop: 12, 
+                paddingBottom: 12, 
+                paddingHorizontal: 16,
+                fontSize: 16,
+                borderRadius: 12,
+              }}
+            />
+            <Button
+              onPress={handleSendMessage}
+              disabled={!newMessage.trim() || isSending}
+              size="default"
+              className="h-[44px] px-6 bg-blue-500"
+              style={{
+                backgroundColor: '#3B82F6',
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
+                {isSending ? 'Sending...' : 'Send'}
+              </Text>
+            </Button>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
       <BottomNavigation />
-    </KeyboardAvoidingView>
+    </View>
   );
 }

@@ -184,4 +184,41 @@ export class ProfileService {
     
     return response;
   }
+
+  static async uploadAvatar(userId: number, imageUri: string): Promise<User> {
+    const endpoint = API_ENDPOINTS.PROFILE.UPLOAD_AVATAR(userId);
+    console.log('=== UPLOAD AVATAR API CALL ===');
+    console.log('Endpoint:', endpoint);
+    console.log('User ID:', userId);
+    console.log('Image URI length:', imageUri?.length || 0);
+    console.log('==============================');
+
+    // Create FormData for image upload
+    const formData = new FormData();
+    
+    // Add the image file
+    formData.append('avatar', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'avatar.jpg',
+    } as any);
+
+    console.log('FormData created with avatar image');
+
+    // Make the request with multipart/form-data
+    const response = await apiClient.post(endpoint, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    console.log('=== UPLOAD AVATAR API RESPONSE ===');
+    console.log('Response status:', response?.status);
+    console.log('Response data keys:', response?.data ? Object.keys(response.data) : 'No data');
+    console.log('Avatar URL:', response?.data?.avatar || response?.avatar);
+    console.log('==================================');
+
+    // Handle different response structures
+    return response.data || response.user || response;
+  }
 }
