@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Platform } from 'react-native';
 import { NAV_THEME } from '~/lib/constants';
 import { PortalHost } from '@rn-primitives/portal';
-import { AuthStorage, AuthService } from '~/lib/api';
+import { AuthProvider } from '~/lib/context/AuthContext';
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
@@ -28,27 +28,13 @@ export default function RootLayout() {
     if (Platform.OS === 'web') {
       document.documentElement.classList.add('bg-background');
     }
-    
-    // Initialize auth
-    const initializeAuth = async () => {
-      try {
-        // Initialize auth token from storage
-        const token = await AuthStorage.getToken();
-        if (token) {
-          AuthService.setToken(token);
-        }
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-      }
-    };
-    
-    initializeAuth();
   }, []);
 
   return (
-    <ThemeProvider value={LIGHT_THEME}>
-      <StatusBar style="dark" />
-      <Stack>
+    <AuthProvider>
+      <ThemeProvider value={LIGHT_THEME}>
+        <StatusBar style="dark" />
+        <Stack>
         <Stack.Screen
           name='index'
           options={{
@@ -111,9 +97,10 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
-      </Stack>
-      <PortalHost />
-    </ThemeProvider>
+        </Stack>
+        <PortalHost />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

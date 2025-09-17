@@ -22,11 +22,13 @@ import {
 } from '~/components/ui/dialog';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { AuthService, AuthStorage, User, ProfileService } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const { logout, user: authUser, isAuthenticated, refreshUser } = useAuth();
 
   // Edit profile state
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -51,28 +53,72 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     const loadUserData = async () => {
       try {
-        const userData = await AuthStorage.getUser();
-        console.log('=== PROFILE USER DATA ===');
-        console.log('Loaded user data:', userData);
-        console.log('User fields:', {
-          name: userData?.name,
-          email: userData?.email,
-          phone: userData?.phone,
-          address: userData?.address,
-          date_of_birth: userData?.date_of_birth,
-          avatar: userData?.avatar
-        });
-        console.log('=========================');
-        setUser(userData);
+        console.log('=== PROFILE LOADING PROCESS ===');
+        console.log('Auth context user:', authUser);
+        console.log('Is authenticated:', isAuthenticated);
+
+        // First, try to use auth context user data
+        if (authUser && isAuthenticated) {
+          console.log('✅ Using auth context user data');
+          setUser(authUser);
+          setIsLoading(false);
+          return;
+        }
+
+        // If no auth context user, try getting from storage
+        console.log('🔍 Checking local storage for user data...');
+        const storedUserData = await AuthStorage.getUser();
+        console.log('Stored user data:', storedUserData);
+
+        if (storedUserData) {
+          console.log('✅ Using stored user data');
+          setUser(storedUserData);
+        } else {
+          // If no stored data, try fetching fresh from API
+          console.log('🌐 Fetching fresh user data from API...');
+          try {
+            const token = await AuthStorage.getToken();
+            if (token) {
+              AuthService.setToken(token);
+              const freshUserData = await AuthService.getCurrentUser();
+
+              if (freshUserData) {
+                console.log('✅ Got fresh user data from API:', freshUserData);
+                setUser(freshUserData);
+                // Save to storage for future use
+                await AuthStorage.saveUser(freshUserData);
+              } else {
+                console.log('❌ No user data from API');
+                // Redirect to login if no user data found anywhere
+                router.replace('/login');
+                return;
+              }
+            } else {
+              console.log('❌ No token found, redirecting to login');
+              router.replace('/login');
+              return;
+            }
+          } catch (apiError) {
+            console.error('Failed to fetch user from API:', apiError);
+            // Redirect to login if API fails
+            router.replace('/login');
+            return;
+          }
+        }
+
+        console.log('=== FINAL USER DATA ===');
+        console.log('User set in state:', user);
+        console.log('======================');
       } catch (error) {
         console.error('Failed to load user data:', error);
+        router.replace('/login');
       } finally {
         setIsLoading(false);
       }
     };
 
     loadUserData();
-  }, []);
+  }, [authUser, isAuthenticated]);
 
   const handleEditProfile = () => {
     if (user) {
@@ -182,6 +228,13 @@ export default function ProfileScreen() {
       setUser(userDataToSave);
       await AuthStorage.saveUser(userDataToSave);
 
+      // Also refresh the auth context to keep it in sync
+      try {
+        await refreshUser();
+      } catch (refreshError) {
+        console.warn('Failed to refresh auth context:', refreshError);
+      }
+
       setIsEditDialogOpen(false);
       Alert.alert('Success', 'Profile updated successfully!');
 
@@ -279,19 +332,97 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleNotificationSettings = () => {
-    Alert.alert('Coming Soon', 'Notification settings will be available soon!');
+  const handleTestNotification = async () => {
+    try {
+      Alert.alert(
+        'Test Notification',
+        'Choose a notification type to test:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'API Test',
+            onPress: async () => {
+              try {
+                await AuthService.sendTestNotification();
+                Alert.alert('Success', 'Test notification sent! You should receive it shortly.');
+              } catch (error: any) {
+                // Only show error for actual API errors, not development fallbacks
+                if (!error.message.includes('Development Notification')) {
+                  Alert.alert('Note', 'API test failed, but development notification was shown.');
+                }
+              }
+            }
+          },
+          {
+            text: 'Fake Chat',
+            onPress: async () => {
+              try {
+                const chatService = (await import('~/lib/services/ChatPollingService')).default;
+                await chatService.simulateNewMessage(
+                  'Dr. Ve Clinic',
+                  'Hello! This is a fake chat notification for testing purposes. 💬',
+                  '1'
+                );
+                Alert.alert('Success', 'Fake chat notification triggered!');
+              } catch (error: any) {
+                Alert.alert('Error', 'Failed to trigger fake notification: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Test notification error:', error);
+    }
   };
 
   const handleHelp = () => {
     Alert.alert('Help & Support', 'Contact us at support@drveaestheticclinic.online or call +63 123 456 7890');
   };
 
+  const handleCheckPollingStatus = async () => {
+    try {
+      const chatService = (await import('~/lib/services/ChatPollingService')).default;
+      const status = chatService.getStatus();
+
+      Alert.alert(
+        'Chat Polling Status',
+        `Status: ${status.isPolling ? 'Active' : 'Inactive'}\n` +
+        `User ID: ${status.userId || 'None'}\n` +
+        `Interval: ${status.intervalMs}ms\n` +
+        `Messages Tracked: ${status.messagesTracked}\n` +
+        `App in Foreground: ${status.isAppInForeground ? 'Yes' : 'No'}`,
+        [
+          { text: 'OK' },
+          {
+            text: 'Test Fake Message',
+            onPress: async () => {
+              await chatService.simulateNewMessage(
+                'Test Sender',
+                'This is a test message triggered from polling status!',
+                '2'
+              );
+            }
+          },
+          {
+            text: 'Force Check Messages',
+            onPress: async () => {
+              await chatService.forceCheckMessages();
+              Alert.alert('Success', 'Forced message check completed - check console for logs');
+            }
+          }
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to check polling status: ' + error.message);
+    }
+  };
+
   const handleAvatarUpload = async () => {
     try {
       // Request permissions
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (permissionResult.granted === false) {
         Alert.alert('Permission Required', 'Permission to access camera roll is required!');
         return;
@@ -393,7 +524,7 @@ export default function ProfileScreen() {
       // Upload avatar - Import ProfileService directly to ensure it's available
       const { ProfileService: PS } = await import('~/lib/api');
       const updatedUser = await PS.uploadAvatar(userId, imageUri);
-      
+
       console.log('=== AVATAR UPLOAD SUCCESS ===');
       console.log('Updated user:', updatedUser);
       console.log('New avatar URL:', updatedUser?.avatar);
@@ -402,7 +533,7 @@ export default function ProfileScreen() {
 
       // Store only the filename from the API response
       const avatarFilename = updatedUser?.avatar;
-      
+
       console.log('=== SAVING AVATAR DATA ===');
       console.log('Avatar filename from API:', avatarFilename);
       console.log('Full avatar URL will be:', avatarFilename ? `https://drveaestheticclinic.online/storage/avatars/${avatarFilename}` : 'No avatar');
@@ -451,16 +582,14 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               // Call logout API and clear stored data
-              await AuthService.logout();
-              await AuthStorage.clearAll();
+              await logout();
 
               // Navigate to login screen
               router.replace('/login');
             } catch (error) {
               console.error('Logout error:', error);
 
-              // Even if API call fails, clear local storage and navigate
-              await AuthStorage.clearAll();
+              // Force navigate even if logout fails
               router.replace('/login');
             }
           },
@@ -497,6 +626,58 @@ export default function ProfileScreen() {
     );
   }
 
+  // If not loading but no user data, show error state
+  if (!user) {
+    return (
+      <View className="flex-1 bg-secondary/30 justify-center items-center px-6">
+        <Text className="text-6xl mb-4">⚠️</Text>
+        <Text className="text-xl font-bold text-foreground mb-2 text-center">
+          Unable to Load Profile
+        </Text>
+        <Text className="text-muted-foreground text-center mb-6">
+          We couldn't load your profile information. Please try logging in again.
+        </Text>
+        <Button
+          onPress={() => router.replace('/login')}
+          className="mb-4"
+        >
+          <Text>Go to Login</Text>
+        </Button>
+        <Button
+          variant="outline"
+          onPress={async () => {
+            setIsLoading(true);
+            try {
+              // First try to refresh from auth context
+              await refreshUser();
+              // If successful, the auth context user will be updated and useEffect will trigger
+            } catch (error) {
+              console.error('Retry failed:', error);
+              // Try direct API call as fallback
+              try {
+                const token = await AuthStorage.getToken();
+                if (token) {
+                  AuthService.setToken(token);
+                  const freshUserData = await AuthService.getCurrentUser();
+                  if (freshUserData) {
+                    setUser(freshUserData);
+                    await AuthStorage.saveUser(freshUserData);
+                  }
+                }
+              } catch (fallbackError) {
+                console.error('Fallback retry failed:', fallbackError);
+              }
+            } finally {
+              setIsLoading(false);
+            }
+          }}
+        >
+          <Text>Try Again</Text>
+        </Button>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-secondary/30">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -512,28 +693,28 @@ export default function ProfileScreen() {
               <TouchableOpacity onPress={handleAvatarUpload} disabled={isUploadingAvatar}>
                 <View className="relative">
                   <Avatar className="w-24 h-24 mb-4">
-                    <AvatarImage 
-                      source={{ 
-                        uri: (user?.data || user)?.avatar 
+                    <AvatarImage
+                      source={{
+                        uri: (user?.data || user)?.avatar
                           ? `https://drveaestheticclinic.online/storage/${(user?.data || user)?.avatar}`
                           : undefined,
                         // Add cache control for better image loading
                         cache: 'reload'
-                      }} 
+                      }}
                       style={{ borderRadius: 48 }}
                     />
                     <AvatarFallback>
                       <Text className="text-2xl">{(user?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
                     </AvatarFallback>
                   </Avatar>
-                  
+
                   {/* Upload indicator overlay */}
                   {isUploadingAvatar && (
                     <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
                       <Text className="text-white text-sm">📸</Text>
                     </View>
                   )}
-                  
+
                   {/* Camera icon overlay */}
                   <View className="absolute -bottom-2 -right-2 bg-primary rounded-full w-8 h-8 items-center justify-center border-2 border-background">
                     <Text className="text-primary-foreground text-sm">📸</Text>
@@ -662,6 +843,20 @@ export default function ProfileScreen() {
                 onPress={handleHelp}
               />
               <Separator />
+              {/* <MenuOption
+                title="Test Notification"
+                subtitle="Send a test push notification"
+                icon="🔔"
+                onPress={handleTestNotification}
+              /> */}
+              <Separator />
+              {/* <MenuOption
+                title="Polling Status"
+                subtitle="Check chat polling and fake notifications"
+                icon="🔄"
+                onPress={handleCheckPollingStatus}
+              />
+              <Separator /> */}
               <MenuOption
                 title="About App"
                 subtitle="Learn more about our app"
@@ -677,8 +872,8 @@ export default function ProfileScreen() {
           className="px-6"
           style={{ paddingBottom: Math.max(insets.bottom + 100, 120) }}
         >
-          <Button variant="destructive" onPress={handleLogout} className="w-full bg-primary-gradient">
-            <Text>Sign Out</Text>
+          <Button onPress={handleLogout} className="w-full bg-red-500">
+            <Text className="text-white font-semibold">Sign Out</Text>
           </Button>
         </View>
       </ScrollView>

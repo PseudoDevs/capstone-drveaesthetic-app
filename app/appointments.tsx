@@ -17,10 +17,12 @@ import {
 } from '~/components/ui/dropdown-menu';
 import { ChevronDown } from '~/lib/icons/ChevronDown';
 import { AppointmentService, Appointment as ApiAppointment, AuthStorage, FeedbackService, Feedback } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 import { router } from 'expo-router';
 
 
 export default function AppointmentsScreen() {
+  const { user: authUser, isAuthenticated } = useAuth();
   const [selectedStatusFilter, setSelectedStatusFilter] = React.useState<string>('all');
   const [selectedDateFilter, setSelectedDateFilter] = React.useState<string>('all');
   const [appointments, setAppointments] = React.useState<ApiAppointment[]>([]);
@@ -36,10 +38,23 @@ export default function AppointmentsScreen() {
     setError(null);
 
     try {
-      // Check if user is authenticated and get user info
-      const token = await AuthStorage.getToken();
-      const userData = await AuthStorage.getUser();
+      console.log('=== APPOINTMENTS LOADING PROCESS ===');
+      console.log('Auth context user:', authUser);
+      console.log('Is authenticated:', isAuthenticated);
 
+      // First, try to use auth context user data
+      let userData = null;
+      if (authUser && isAuthenticated) {
+        console.log('✅ Using auth context user data');
+        userData = authUser;
+      } else {
+        // Fall back to storage if auth context is not available
+        console.log('🔍 Checking local storage for user data...');
+        userData = await AuthStorage.getUser();
+      }
+
+      // Check if user is authenticated
+      const token = await AuthStorage.getToken();
       if (!token) {
         try {
           router.replace('/login');
@@ -123,7 +138,7 @@ export default function AppointmentsScreen() {
 
   React.useEffect(() => {
     loadAppointments();
-  }, []);
+  }, [authUser, isAuthenticated]);
 
   React.useEffect(() => {
     let filtered = appointments;

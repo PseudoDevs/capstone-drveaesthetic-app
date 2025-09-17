@@ -269,30 +269,57 @@ export default function IndividualChatScreen() {
               messages.map((message, index) => (
                 <View
                   key={`${message.id}-${index}`}
-                  className={`flex-row ${isMyMessage(message) ? 'justify-end' : 'justify-start'}`}
+                  className={`flex-row mb-3 ${isMyMessage(message) ? 'justify-end' : 'justify-start'}`}
                 >
+                  {/* Avatar for staff messages */}
+                  {!isMyMessage(message) && (
+                    <View className="w-8 h-8 rounded-full bg-blue-100 mr-2 items-center justify-center">
+                      <Text className="text-blue-600 font-bold text-xs">Dr</Text>
+                    </View>
+                  )}
+
                   <View
-                    className={`max-w-[80%] p-3 rounded-2xl ${
+                    className={`max-w-[75%] p-4 rounded-2xl shadow-sm ${
                       isMyMessage(message)
-                        ? 'bg-primary rounded-br-md'
-                        : 'bg-background border border-border rounded-bl-md'
+                        ? 'bg-blue-500 rounded-br-md'
+                        : 'bg-white border border-gray-200 rounded-bl-md'
                     }`}
                   >
+                    {/* Show sender name for both client and staff */}
+                    <Text className={`text-xs font-semibold mb-2 ${
+                      isMyMessage(message)
+                        ? 'text-blue-100'
+                        : 'text-blue-600'
+                    }`}>
+                      {isMyMessage(message)
+                        ? currentUser?.name || currentUser?.data?.name || 'You'
+                        : 'Dr. Ve Staff'
+                      }
+                    </Text>
                     <Text
-                      className={`text-sm ${
-                        isMyMessage(message) ? 'text-primary-foreground' : 'text-foreground'
+                      className={`text-sm leading-5 ${
+                        isMyMessage(message) ? 'text-white' : 'text-gray-800'
                       }`}
                     >
                       {message.message}
                     </Text>
                     <Text
-                      className={`text-xs mt-1 ${
-                        isMyMessage(message) ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      className={`text-xs mt-2 ${
+                        isMyMessage(message) ? 'text-blue-100' : 'text-gray-500'
                       }`}
                     >
                       {formatMessageTime(message.created_at)}
                     </Text>
                   </View>
+
+                  {/* Avatar for client messages */}
+                  {isMyMessage(message) && (
+                    <View className="w-8 h-8 rounded-full bg-green-100 ml-2 items-center justify-center">
+                      <Text className="text-green-600 font-bold text-xs">
+                        {(currentUser?.name || currentUser?.data?.name || 'You').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               ))
             ) : (

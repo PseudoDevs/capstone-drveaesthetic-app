@@ -38,9 +38,13 @@ class ApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          console.warn('🚨 401 Unauthorized response received, but not clearing token automatically');
+          console.warn('🚨 401 Unauthorized response received');
           console.log('Request URL:', error.config?.url);
           console.log('Current token status:', !!this.authToken);
+        } else if (error.response?.status === 403) {
+          console.warn('🚫 403 Forbidden response received');
+          console.log('Request URL:', error.config?.url);
+          console.log('User may not have permission for this resource');
         }
         return Promise.reject(error);
       }

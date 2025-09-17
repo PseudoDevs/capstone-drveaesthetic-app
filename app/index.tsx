@@ -1,41 +1,11 @@
 import * as React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
-import { AuthStorage, AuthService } from '~/lib/api';
 import { Text } from '~/components/ui/text';
+import { useAuth } from '~/lib/context/AuthContext';
 
 export default function IndexScreen() {
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = await AuthStorage.getToken();
-        
-        console.log('=== APP STARTUP TOKEN CHECK ===');
-        console.log('Token found:', token ? 'Yes' : 'No');
-        console.log('Token value:', token);
-        console.log('===============================');
-        
-        if (token) {
-          // Set token in API client for all future requests
-          AuthService.setToken(token);
-          console.log('Token set in API client globally');
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Failed to check auth:', error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (

@@ -4,12 +4,15 @@ export interface User {
   email: string;
   password?: string;
   avatar?: string;
+  avatar_url?: string;
   phone?: string;
   date_of_birth?: string;
   address?: string;
   role?: string;
-  created_at: string;
-  updated_at: string;
+  google_id?: string;
+  email_verified_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface LoginCredentials {

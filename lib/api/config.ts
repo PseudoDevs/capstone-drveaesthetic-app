@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
     LOGOUT: '/client/auth/logout',
     PROFILE: '/client/auth/profile',
     GOOGLE_LOGIN: '/client/auth/google-login',
+    MOBILE_GOOGLE: '/mobile/auth/google/token',
   },
   APPOINTMENTS: {
     LIST: '/client/appointments',

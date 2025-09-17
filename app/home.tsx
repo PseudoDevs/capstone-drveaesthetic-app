@@ -9,10 +9,12 @@ import { Badge } from '~/components/ui/badge';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { AppointmentFormModal } from '~/components/AppointmentFormModal';
 import { AuthStorage, User, ClinicServiceApi, ClinicService } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 
 
 
 export default function HomeScreen() {
+  const { user: authUser, isAuthenticated } = useAuth();
   const [user, setUser] = React.useState<User | null>(null);
   const [services, setServices] = React.useState<ClinicService[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -22,9 +24,21 @@ export default function HomeScreen() {
   React.useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('=== HOME LOADING PROCESS ===');
+        console.log('Auth context user:', authUser);
+        console.log('Is authenticated:', isAuthenticated);
+
+        // Check authentication first
+        if (!isAuthenticated || !authUser) {
+          console.log('❌ Not authenticated, redirecting to login');
+          router.replace('/login');
+          return;
+        }
+
         // Ensure user is authenticated and token is set
         const token = await AuthStorage.getToken();
         if (!token) {
+          console.log('❌ No token found, redirecting to login');
           router.replace('/login');
           return;
         }
@@ -33,9 +47,8 @@ export default function HomeScreen() {
         const { AuthService } = await import('~/lib/api');
         AuthService.setToken(token);
 
-        // Load user data
-        const userData = await AuthStorage.getUser();
-        setUser(userData);
+        // Use auth context user data
+        setUser(authUser);
 
         // Load services
         setIsLoadingServices(true);
@@ -57,8 +70,11 @@ export default function HomeScreen() {
       }
     };
 
-    loadData();
-  }, []);
+    // Only load data when we have authentication
+    if (isAuthenticated && authUser) {
+      loadData();
+    }
+  }, [authUser, isAuthenticated]);
 
   const handleServicePress = (service: ClinicService) => {
     // Navigate to service details or booking

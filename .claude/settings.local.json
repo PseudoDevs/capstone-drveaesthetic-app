@@ -16,7 +16,15 @@
       "WebFetch(domain:capstone-drveaestheticclinic.dev)",
       "Bash(timeout 10s npm run dev)",
       "Bash(npx tsc:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "WebFetch(domain:igloo.hr)",
+      "Bash(cat:*)",
+      "Bash(timeout 15s npm run dev)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(wmic process where ProcessId=15488 delete:*)",
+      "Bash(wmic process where ProcessId=22812 delete:*)",
+      "Bash(timeout 5s npm run dev)"
     ],
     "deny": [],
     "ask": []

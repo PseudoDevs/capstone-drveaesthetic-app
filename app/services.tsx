@@ -16,11 +16,13 @@ import { ChevronDown } from '~/lib/icons/ChevronDown';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { AppointmentFormModal } from '~/components/AppointmentFormModal';
 import { ClinicServiceApi, CategoryService, ClinicService, Category, AuthStorage } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 import { router } from 'expo-router';
 
 
 
 export default function ServicesScreen() {
+  const { user: authUser, isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<number | null>(null);
   const [services, setServices] = React.useState<ClinicService[]>([]);
@@ -35,9 +37,21 @@ export default function ServicesScreen() {
     setError(null);
 
     try {
+      console.log('=== SERVICES LOADING PROCESS ===');
+      console.log('Auth context user:', authUser);
+      console.log('Is authenticated:', isAuthenticated);
+
+      // Check authentication first
+      if (!isAuthenticated || !authUser) {
+        console.log('❌ Not authenticated, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+
       // Ensure user is authenticated and token is set
       const token = await AuthStorage.getToken();
       if (!token) {
+        console.log('❌ No token found, redirecting to login');
         router.replace('/login');
         return;
       }
@@ -48,20 +62,35 @@ export default function ServicesScreen() {
 
       console.log('=== LOADING SERVICES AND CATEGORIES ===');
       console.log('Auth token available:', token ? 'Yes' : 'No');
+      console.log('Token preview:', token.substring(0, 20) + '...');
+      console.log('User ID:', authUser?.id || authUser?.data?.id);
       console.log('=======================================');
 
-      const [servicesResponse, categoriesResponse] = await Promise.all([
-        ClinicServiceApi.getServices(),
-        CategoryService.getCategories()
-      ]);
+      // Load services and categories separately to isolate 403 errors
+      console.log('🔄 Loading services...');
+      const servicesResponse = await ClinicServiceApi.getServices();
+      console.log('✅ Services loaded successfully');
+
+      console.log('🔄 Loading categories...');
+      let categoriesResponse;
+      try {
+        categoriesResponse = await CategoryService.getCategories();
+        console.log('✅ Categories loaded successfully');
+      } catch (categoriesError: any) {
+        console.error('❌ Categories failed with error:', categoriesError);
+        console.error('Categories error status:', categoriesError.response?.status);
+        console.error('Categories error message:', categoriesError.message);
+        // Set empty array if categories fail
+        categoriesResponse = [];
+      }
 
       console.log('=== API RESPONSES ===');
       console.log('Services response:', servicesResponse);
       console.log('Categories response:', categoriesResponse);
       console.log('====================');
-      
+
       setServices(servicesResponse.data || []);
-      setCategories(categoriesResponse.data || categoriesResponse || []);
+      setCategories(Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse.data || categoriesResponse || []));
     } catch (error: any) {
       console.error('Failed to load data:', error);
       if (error.response?.status === 401) {
@@ -76,8 +105,11 @@ export default function ServicesScreen() {
   };
 
   React.useEffect(() => {
-    loadData();
-  }, []);
+    // Only load data when we have authentication
+    if (isAuthenticated && authUser) {
+      loadData();
+    }
+  }, [authUser, isAuthenticated]);
 
   React.useEffect(() => {
     let filtered = services;
@@ -218,7 +250,6 @@ export default function ServicesScreen() {
 
                       <View className="flex-row justify-between items-center mb-2">
                         <Text className="text-xs text-muted-foreground">
-                          👤 {service.staff.name}
                         </Text>
                         <Text className="text-xs text-muted-foreground">
                           📅 {service.appointments_count} bookings

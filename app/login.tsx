@@ -6,20 +6,21 @@ import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { Text } from '~/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
-import { AuthService, AuthStorage } from '~/lib/api';
-import { GoogleWebViewLogin } from '~/components/GoogleWebViewLogin';
+import { AuthService } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
-  const [showGoogleWebView, setShowGoogleWebView] = React.useState(false);
   const [errors, setErrors] = React.useState<{
     email?: string;
     password?: string;
     general?: string;
   }>({});
+
+  const { login } = useAuth();
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -62,19 +63,12 @@ export default function LoginScreen() {
       console.log('Token:', response.token);
       console.log('User:', JSON.stringify(response.user, null, 2));
       console.log('======================');
-      
-      // Save token and user to storage
-      await AuthStorage.saveToken(response.token);
-      await AuthStorage.saveUser(response.user);
-      
-      // Set token in API client for immediate use
-      AuthService.setToken(response.token);
-      console.log('Token set in API client after login');
-      
-      // Small delay to ensure storage operations complete
-      setTimeout(() => {
-        router.replace('/home');
-      }, 100);
+
+      // Use AuthContext login method
+      await login(response.token, response.user);
+
+      // Navigate to home
+      router.replace('/home');
     } catch (error: any) {
       console.log('=== LOGIN ERROR ===');
       console.error('Full error:', error);
@@ -119,49 +113,30 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setErrors({});
-    setShowGoogleWebView(true);
-  };
-
-  const handleGoogleSuccess = async (tokens: { access_token: string; id_token?: string }) => {
     setIsGoogleLoading(true);
+    
     try {
-      console.log('=== WEBVIEW GOOGLE SUCCESS ===');
-      console.log('Access Token Length:', tokens.access_token?.length || 0);
-      console.log('ID Token Present:', !!tokens.id_token);
-      console.log('==============================');
-      
-      // Use ID token if available, otherwise use access token
-      const tokenToSend = tokens.id_token || tokens.access_token;
-      
-      // Call your API with the Google tokens
-      const response = await AuthService.loginWithGoogleToken(
-        tokenToSend,
-        tokens.id_token
-      );
-      
-      console.log('=== API RESPONSE SUCCESS ===');
+      console.log('=== STARTING GOOGLE BROWSER LOGIN ===');
+
+      // Use simple Expo-compatible Google authentication
+      const response = await AuthService.authenticateWithGoogleSimple();
+
+      console.log('=== GOOGLE BROWSER LOGIN SUCCESS ===');
       console.log('User:', JSON.stringify(response.user, null, 2));
       console.log('Token:', response.token);
-      console.log('============================');
-      
-      // Save token and user to storage
-      await AuthStorage.saveToken(response.token);
-      await AuthStorage.saveUser(response.user);
-      
-      // Set token in API client for immediate use
-      AuthService.setToken(response.token);
-      console.log('Token set in API client after Google login');
-      
-      // Small delay to ensure storage operations complete
-      setTimeout(() => {
-        router.replace('/home');
-      }, 100);
+      console.log('====================================');
+
+      // Use AuthContext login method
+      await login(response.token, response.user);
+
+      // Navigate to home
+      router.replace('/home');
     } catch (error: any) {
-      console.log('=== GOOGLE LOGIN ERROR ===');
+      console.log('=== GOOGLE BROWSER LOGIN ERROR ===');
       console.error('Full error:', error);
-      console.log('==========================');
+      console.log('==================================');
       
       setErrors({ 
         general: error.message || 'Google Sign-In failed. Please try again.' 
@@ -171,15 +146,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleError = (error: string) => {
-    console.log('=== GOOGLE WEBVIEW ERROR ===');
-    console.error('Error:', error);
-    console.log('============================');
-    
-    setErrors({ 
-      general: error 
-    });
-  };
 
 
   return (
@@ -330,17 +296,6 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* Google WebView Login Modal */}
-      <GoogleWebViewLogin
-        visible={showGoogleWebView}
-        onClose={() => {
-          setShowGoogleWebView(false);
-          setIsGoogleLoading(false);
-        }}
-        onSuccess={handleGoogleSuccess}
-        onError={handleGoogleError}
-      />
     </KeyboardAvoidingView>
   );
 }

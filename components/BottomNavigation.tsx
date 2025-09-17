@@ -3,6 +3,7 @@ import { View, Pressable } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
+import { useAuth } from '~/lib/context/AuthContext';
 import { HomeIcon } from '~/lib/icons/Home';
 import { Info } from '~/lib/icons/Info';
 import { UserIcon } from '~/lib/icons/User';
@@ -22,43 +23,44 @@ const navItems: NavItem[] = [
     name: 'home',
     path: '/home',
     icon: HomeIcon,
-    label: 'Home'
+    label: ''
   },
   {
     name: 'about',
     path: '/about',
     icon: Info,
-    label: 'About'
-  },
-  {
-    name: 'profile',
-    path: '/profile',
-    icon: UserIcon,
-    label: 'Profile'
-  },
-  {
-    name: 'services',
-    path: '/services',
-    icon: ScissorsIcon,
-    label: 'Services'
-  },
-  {
-    name: 'appointments',
-    path: '/appointments',
-    icon: CalendarIcon,
-    label: 'Appointment'
+    label: ''
   },
   {
     name: 'chat',
     path: '/chat',
     icon: MessageCircle,
-    label: 'Chat'
-  }
+    label: ''
+  },
+  {
+    name: 'services',
+    path: '/services',
+    icon: ScissorsIcon,
+    label: ''
+  },
+  {
+    name: 'appointments',
+    path: '/appointments',
+    icon: CalendarIcon,
+    label: ''
+  },
+  {
+    name: 'profile',
+    path: '/profile',
+    icon: UserIcon,
+    label: ''
+  },
 ];
 
 export function BottomNavigation() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { unreadCount } = useAuth();
 
   const handleNavPress = (path: string) => {
     router.push(path as any);
@@ -66,31 +68,39 @@ export function BottomNavigation() {
 
   return (
     <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border">
-      <View 
+      <View
         className="flex-row justify-around items-center pt-3 px-4"
         style={{ paddingBottom: Math.max(insets.bottom + 12, 20) }}
       >
         {navItems.map((item) => {
-          const isActive = pathname === item.path || 
+          const isActive = pathname === item.path ||
             (item.path === '/home' && pathname === '/') ||
             (item.path === '/chat' && pathname.startsWith('/chat'));
-          
+
           const IconComponent = item.icon;
-          
+
           return (
             <Pressable
               key={item.name}
               onPress={() => handleNavPress(item.path)}
               className="flex-1 items-center py-2 active:opacity-70"
             >
-              <IconComponent 
-                size={24} 
-                className={`mb-1 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
-              />
-              <Text 
-                className={`text-xs font-medium ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                }`}
+              <View className="relative">
+                <IconComponent
+                  size={24}
+                  className={`mb-1 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+                />
+                {item.name === 'chat' && unreadCount > 0 && (
+                  <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center">
+                    <Text className="text-white text-xs font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-muted-foreground'
+                  }`}
               >
                 {item.label}
               </Text>
