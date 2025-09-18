@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (token: string, user?: User) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUser: (userData: User) => Promise<void>;
   updateUnreadCount: (count: number) => void;
 }
 
@@ -34,12 +35,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Get user data if not provided
       const currentUser = userData || await AuthService.getCurrentUser();
 
-      setUser(currentUser);
-      setIsAuthenticated(true);
-
-      console.log('User logged in successfully');
+      if (currentUser) {
+        setUser(currentUser);
+        setIsAuthenticated(true);
+        // Save user data to storage for persistence
+        await AuthStorage.saveUser(currentUser);
+        console.log('User logged in successfully:', currentUser.name);
+      } else {
+        throw new Error('Failed to get user data after login');
+      }
     } catch (error) {
       console.error('Failed to login:', error);
+      // Clean up on login failure
+      await AuthStorage.removeToken();
+      AuthService.clearToken();
       throw error;
     }
   };
@@ -47,40 +56,75 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     try {
       await AuthService.logout();
-      await AuthStorage.removeToken();
-
-      setUser(null);
-      setIsAuthenticated(false);
-      setUnreadCount(0);
-
-      console.log('User logged out successfully');
     } catch (error) {
-      console.error('Failed to logout:', error);
-
-      // Force logout even if API call fails
-      await AuthStorage.removeToken();
+      console.warn('Logout API call failed:', error);
+    } finally {
+      // Always clear local data regardless of API response
+      await AuthStorage.clearAll();
       AuthService.clearToken();
       setUser(null);
       setIsAuthenticated(false);
       setUnreadCount(0);
+      console.log('User logged out successfully');
     }
   };
 
   const refreshUser = async () => {
     try {
       if (isAuthenticated) {
+        const token = await AuthStorage.getToken();
+        if (!token) {
+          console.warn('No token found during refresh, logging out');
+          await logout();
+          return;
+        }
+
+        AuthService.setToken(token);
         const currentUser = await AuthService.getCurrentUser();
-        setUser(currentUser);
+
+        if (currentUser) {
+          setUser(currentUser);
+          // Update stored user data to keep it fresh
+          await AuthStorage.saveUser(currentUser);
+          console.log('User data refreshed successfully');
+        } else {
+          console.warn('No user data received during refresh');
+        }
       }
     } catch (error) {
       console.error('Failed to refresh user:', error);
-      // If token is invalid, logout
+
+      // Only logout on 401 errors (invalid token), not on other errors
       if (error && typeof error === 'object' && 'response' in error) {
         const response = error.response as any;
         if (response?.status === 401) {
+          console.warn('Token invalid during refresh, logging out');
           await logout();
+        } else {
+          // For other errors, try to use cached user data
+          console.warn('API error during refresh, using cached data:', response?.status);
+          try {
+            const cachedUser = await AuthStorage.getUser();
+            if (cachedUser && !user) {
+              setUser(cachedUser);
+              console.log('Using cached user data during API error');
+            }
+          } catch (storageError) {
+            console.error('Failed to get cached user data:', storageError);
+          }
         }
       }
+    }
+  };
+
+  const updateUser = async (userData: User) => {
+    try {
+      setUser(userData);
+      await AuthStorage.saveUser(userData);
+      console.log('User data updated in auth context:', userData.name);
+    } catch (error) {
+      console.error('Failed to update user data:', error);
+      throw error;
     }
   };
 
@@ -99,16 +143,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (token) {
           AuthService.setToken(token);
 
-          // Verify token is still valid by getting current user
-          const currentUser = await AuthService.getCurrentUser();
+          try {
+            // First try to get cached user data
+            const cachedUser = await AuthStorage.getUser();
 
-          if (currentUser) {
-            setUser(currentUser);
-            setIsAuthenticated(true);
-            console.log('Authentication restored for user:', currentUser.name);
-          } else {
+            if (cachedUser) {
+              setUser(cachedUser);
+              setIsAuthenticated(true);
+              console.log('Authentication restored with cached data for user:', cachedUser.name);
+
+              // Try to refresh user data in background, but don't fail if it doesn't work
+              try {
+                const currentUser = await AuthService.getCurrentUser();
+                if (currentUser) {
+                  setUser(currentUser);
+                  await AuthStorage.saveUser(currentUser);
+                  console.log('User data refreshed during auth check');
+                }
+              } catch (refreshError) {
+                console.warn('Failed to refresh user data during auth check, using cached data:', refreshError);
+              }
+            } else {
+              // No cached user, try to get from API
+              const currentUser = await AuthService.getCurrentUser();
+              if (currentUser) {
+                setUser(currentUser);
+                setIsAuthenticated(true);
+                await AuthStorage.saveUser(currentUser);
+                console.log('Authentication restored for user:', currentUser.name);
+              } else {
+                throw new Error('No user data available');
+              }
+            }
+          } catch (apiError) {
+            console.error('Failed to verify token during auth check:', apiError);
             // Token is invalid, clear it
-            await AuthStorage.removeToken();
+            await AuthStorage.clearAll();
             AuthService.clearToken();
             setIsAuthenticated(false);
             console.log('Token invalid, cleared');
@@ -139,6 +209,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     refreshUser,
+    updateUser,
     updateUnreadCount,
   };
 

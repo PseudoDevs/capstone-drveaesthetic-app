@@ -28,7 +28,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const { logout, user: authUser, isAuthenticated, refreshUser } = useAuth();
+  const { logout, user: authUser, isAuthenticated, refreshUser, updateUser } = useAuth();
 
   // Edit profile state
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -57,7 +57,7 @@ export default function ProfileScreen() {
         console.log('Auth context user:', authUser);
         console.log('Is authenticated:', isAuthenticated);
 
-        // First, try to use auth context user data
+        // Always prioritize auth context user data to ensure consistency
         if (authUser && isAuthenticated) {
           console.log('✅ Using auth context user data');
           setUser(authUser);
@@ -119,6 +119,14 @@ export default function ProfileScreen() {
 
     loadUserData();
   }, [authUser, isAuthenticated]);
+
+  // Sync local user state with AuthContext when it updates
+  React.useEffect(() => {
+    if (authUser && isAuthenticated) {
+      setUser(authUser);
+      console.log('Profile screen synced with AuthContext user update');
+    }
+  }, [authUser]);
 
   const handleEditProfile = () => {
     if (user) {
@@ -224,15 +232,16 @@ export default function ProfileScreen() {
       console.log('Data to save:', JSON.stringify(userDataToSave, null, 2));
       console.log('========================');
 
-      // Update local state and storage with API response
+      // Update local state and auth context with API response
       setUser(userDataToSave);
-      await AuthStorage.saveUser(userDataToSave);
 
-      // Also refresh the auth context to keep it in sync
+      // Update the auth context directly to keep it in sync
       try {
-        await refreshUser();
-      } catch (refreshError) {
-        console.warn('Failed to refresh auth context:', refreshError);
+        await updateUser(userDataToSave);
+        console.log('Auth context updated successfully');
+      } catch (updateError) {
+        console.warn('Failed to update auth context, saving to storage directly:', updateError);
+        await AuthStorage.saveUser(userDataToSave);
       }
 
       setIsEditDialogOpen(false);
@@ -539,7 +548,7 @@ export default function ProfileScreen() {
       console.log('Full avatar URL will be:', avatarFilename ? `https://drveaestheticclinic.online/storage/avatars/${avatarFilename}` : 'No avatar');
       console.log('==========================');
 
-      // Update local state and storage with filename only
+      // Update local state and auth context with filename only
       const userDataToSave = {
         ...user,
         ...(user?.data ? { data: { ...user.data, ...updatedUser } } : updatedUser),
@@ -548,7 +557,15 @@ export default function ProfileScreen() {
       };
 
       setUser(userDataToSave);
-      await AuthStorage.saveUser(userDataToSave);
+
+      // Update the auth context directly to keep it in sync
+      try {
+        await updateUser(userDataToSave);
+        console.log('Auth context updated with new avatar');
+      } catch (updateError) {
+        console.warn('Failed to update auth context, saving to storage directly:', updateError);
+        await AuthStorage.saveUser(userDataToSave);
+      }
 
       Alert.alert('Success', 'Avatar updated successfully!');
 
