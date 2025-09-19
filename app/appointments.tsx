@@ -1,621 +1,441 @@
-import * as React from 'react';
-import { View, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  ScrollView,
+  Alert,
+  RefreshControl,
+  ActivityIndicator,
+  Pressable
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
+import { Separator } from '~/components/ui/separator';
 import { BottomNavigation } from '~/components/BottomNavigation';
-import { RescheduleAppointmentModal } from '~/components/RescheduleAppointmentModal';
-import { RateServiceModal } from '~/components/RateServiceModal';
-import { AppointmentFormModal } from '~/components/AppointmentFormModal';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu';
-import { ChevronDown } from '~/lib/icons/ChevronDown';
-import { AppointmentService, Appointment as ApiAppointment, AuthStorage, FeedbackService, Feedback } from '~/lib/api';
+import { SimpleRatingModal } from '~/components/SimpleRatingModal';
+import { AppointmentService, Appointment, FeedbackService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
-import { router } from 'expo-router';
 
+type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
 export default function AppointmentsScreen() {
-  const { user: authUser, isAuthenticated } = useAuth();
-  const [selectedStatusFilter, setSelectedStatusFilter] = React.useState<string>('all');
-  const [selectedDateFilter, setSelectedDateFilter] = React.useState<string>('all');
-  const [appointments, setAppointments] = React.useState<ApiAppointment[]>([]);
-  const [filteredAppointments, setFilteredAppointments] = React.useState<ApiAppointment[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [currentUser, setCurrentUser] = React.useState<any>(null);
-  const [userFeedbacks, setUserFeedbacks] = React.useState<Feedback[]>([]);
   const insets = useSafeAreaInsets();
+  const { user, isAuthenticated } = useAuth();
 
-  const loadAppointments = async () => {
-    setIsLoading(true);
-    setError(null);
+  // Core state
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<'all' | AppointmentStatus>('all');
+  const [processing, setProcessing] = useState<{ [key: number]: boolean }>({});
+
+  // Rating modal state
+  const [ratingModal, setRatingModal] = useState<{
+    visible: boolean;
+    appointment: Appointment | null;
+  }>({ visible: false, appointment: null });
+
+  // Get user ID safely
+  const getUserId = useCallback(() => {
+    if (!user || !isAuthenticated) return null;
+    return (user as any)?.data?.id || (user as any)?.id;
+  }, [user, isAuthenticated]);
+
+  // Load appointments
+  const loadAppointments = useCallback(async () => {
+    const userId = getUserId();
+    if (!userId) {
+      setAppointments([]);
+      setLoading(false);
+      return;
+    }
 
     try {
-      console.log('=== APPOINTMENTS LOADING PROCESS ===');
-      console.log('Auth context user:', authUser);
-      console.log('Is authenticated:', isAuthenticated);
-
-      // First, try to use auth context user data
-      let userData = null;
-      if (authUser && isAuthenticated) {
-        console.log('✅ Using auth context user data');
-        userData = authUser;
-      } else {
-        // Fall back to storage if auth context is not available
-        console.log('🔍 Checking local storage for user data...');
-        userData = await AuthStorage.getUser();
-      }
-
-      // Check if user is authenticated
-      const token = await AuthStorage.getToken();
-      if (!token) {
-        try {
-          router.replace('/login');
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-        }
-        return;
-      }
-
-      // Set token in API client to ensure requests are authenticated
-      const { AuthService } = await import('~/lib/api');
-      AuthService.setToken(token);
-
-      setCurrentUser(userData);
-      console.log('=== CURRENT USER ===');
-      console.log('User data:', JSON.stringify(userData, null, 2));
-      console.log('User data structure check:');
-      console.log('userData exists:', !!userData);
-      console.log('userData.id:', userData?.id);
-      console.log('userData.data:', userData?.data);
-      console.log('userData.data.id:', userData?.data?.id);
-      console.log('===================');
-
-      // Check for user ID in different possible structures
-      const userId = userData?.data?.id || userData?.id;
-      if (!userData || !userId) {
-        throw new Error('User data not available - no valid user ID found');
-      }
-
+      setError(null);
       const response = await AppointmentService.getClientAppointments(userId);
-
-      console.log('=== CLIENT APPOINTMENTS API RESPONSE ===');
-      console.log('Client ID used:', userId);
-      console.log('API Endpoint called:', `/client/users/${userId}/appointments`);
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      console.log('Appointments data:', response.data);
-      console.log('========================================');
-
-      setAppointments(response.data);
-
-      // Load user feedbacks to check which appointments already have ratings
-      try {
-        const feedbackResponse = await FeedbackService.getFeedbacks();
-        console.log('=== RAW FEEDBACK RESPONSE ===');
-        console.log('Feedback response:', JSON.stringify(feedbackResponse, null, 2));
-        console.log('Response type:', typeof feedbackResponse);
-        console.log('Is array:', Array.isArray(feedbackResponse));
-        console.log('Has data property:', !!feedbackResponse.data);
-        console.log('============================');
-        
-        // Handle different response structures
-        const feedbacks = Array.isArray(feedbackResponse) 
-          ? feedbackResponse 
-          : (Array.isArray(feedbackResponse.data) ? feedbackResponse.data : []);
-        
-        setUserFeedbacks(feedbacks);
-        console.log('=== PROCESSED USER FEEDBACKS ===');
-        console.log('Feedbacks:', JSON.stringify(feedbacks, null, 2));
-        console.log('Feedbacks count:', feedbacks.length);
-        console.log('================================');
-      } catch (feedbackError) {
-        console.warn('Failed to load user feedbacks:', feedbackError);
-        setUserFeedbacks([]); // Set empty array as fallback
-      }
-    } catch (error: any) {
-      console.error('Failed to load appointments:', error);
-      if (error.response?.status === 401) {
-        await AuthStorage.clearAll();
-        try {
-          router.replace('/login');
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-        }
-        return;
-      }
-      setError('Failed to load appointments. Please try again.');
+      setAppointments(response.data || []);
+    } catch (err: any) {
+      console.error('Load appointments error:', err);
+      setError('Failed to load appointments');
+      setAppointments([]);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, [getUserId]);
 
-  React.useEffect(() => {
-    loadAppointments();
-  }, [authUser, isAuthenticated]);
+  // Refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadAppointments();
+    setRefreshing(false);
+  }, [loadAppointments]);
 
-  React.useEffect(() => {
-    let filtered = appointments;
-
-    // Filter by status
-    if (selectedStatusFilter !== 'all') {
-      filtered = filtered.filter(appointment => appointment.status === selectedStatusFilter);
-    }
-
-    // Filter by date
-    if (selectedDateFilter !== 'all') {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      filtered = filtered.filter(appointment => {
-        const appointmentDate = new Date(appointment.appointment_date);
-        const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-        
-        switch (selectedDateFilter) {
-          case 'today':
-            return appointmentDay.getTime() === today.getTime();
-          case 'upcoming':
-            return appointmentDay.getTime() >= today.getTime();
-          case 'past':
-            return appointmentDay.getTime() < today.getTime();
-          case 'this_week':
-            const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-            return appointmentDay.getTime() >= today.getTime() && appointmentDay.getTime() <= weekFromNow.getTime();
-          case 'this_month':
-            return appointmentDate.getMonth() === now.getMonth() && appointmentDate.getFullYear() === now.getFullYear();
-          default:
-            return true;
-        }
-      });
-    }
-
-    setFilteredAppointments(filtered);
-  }, [selectedStatusFilter, selectedDateFilter, appointments]);
-
-  const getStatusFilterOptions = () => [
-    { key: 'all', label: 'All Status', count: appointments.length },
-    { key: 'pending', label: 'Pending', count: appointments.filter(a => a.status === 'pending').length },
-    { key: 'confirmed', label: 'Scheduled', count: appointments.filter(a => a.status === 'confirmed').length },
-    { key: 'completed', label: 'Completed', count: appointments.filter(a => a.status === 'completed').length },
-    { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => a.status === 'cancelled').length },
-  ];
-
-  const getDateFilterOptions = () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return [
-      { key: 'all', label: 'All Time', count: appointments.length },
-      { 
-        key: 'today', 
-        label: 'Today', 
-        count: appointments.filter(a => {
-          const appointmentDate = new Date(a.appointment_date);
-          const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-          return appointmentDay.getTime() === today.getTime();
-        }).length 
-      },
-      { 
-        key: 'upcoming', 
-        label: 'Upcoming', 
-        count: appointments.filter(a => {
-          const appointmentDate = new Date(a.appointment_date);
-          const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-          return appointmentDay.getTime() >= today.getTime();
-        }).length 
-      },
-      { 
-        key: 'past', 
-        label: 'Past', 
-        count: appointments.filter(a => {
-          const appointmentDate = new Date(a.appointment_date);
-          const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-          return appointmentDay.getTime() < today.getTime();
-        }).length 
-      },
-      { 
-        key: 'this_week', 
-        label: 'This Week', 
-        count: appointments.filter(a => {
-          const appointmentDate = new Date(a.appointment_date);
-          const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-          const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-          return appointmentDay.getTime() >= today.getTime() && appointmentDay.getTime() <= weekFromNow.getTime();
-        }).length 
-      },
-      { 
-        key: 'this_month', 
-        label: 'This Month', 
-        count: appointments.filter(a => {
-          const appointmentDate = new Date(a.appointment_date);
-          return appointmentDate.getMonth() === now.getMonth() && appointmentDate.getFullYear() === now.getFullYear();
-        }).length 
-      },
-    ];
-  };
-
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status) {
-      case 'pending':
-        return 'outline';
-      case 'confirmed':
-        return 'default';
-      case 'completed':
-        return 'secondary';
-      case 'cancelled':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const handleReschedule = () => {
-    // Refresh appointments after reschedule
-    loadAppointments();
-  };
-
-  const handleCancel = async (appointment: ApiAppointment) => {
+  // Cancel appointment
+  const cancelAppointment = useCallback(async (appointment: Appointment) => {
     Alert.alert(
       'Cancel Appointment',
-      `Are you sure you want to cancel your appointment for ${appointment.service?.service_name || 'this service'}?`,
+      `Cancel your appointment for ${appointment.service?.service_name || 'this service'}?`,
       [
+        { text: 'Keep', style: 'cancel' },
         {
-          text: 'No, Keep It',
-          style: 'cancel',
-        },
-        {
-          text: 'Yes, Cancel',
+          text: 'Cancel',
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('Cancelling appointment:', appointment.id);
-              await AppointmentService.cancelAppointment(appointment.id.toString());
-              console.log('Appointment cancelled successfully');
-              
-              Alert.alert(
-                'Cancelled',
-                'Your appointment has been cancelled successfully.',
-                [{ text: 'OK' }]
+              setProcessing(prev => ({ ...prev, [appointment.id]: true }));
+
+              const response = await AppointmentService.cancelAppointment(
+                appointment.id.toString(),
+                appointment
               );
 
-              // Update local state to mark appointment as cancelled
-              setAppointments(prevAppointments => 
-                prevAppointments.map(apt => 
-                  apt.id === appointment.id 
+              // Update state immediately
+              setAppointments(prev =>
+                prev.map(apt =>
+                  apt.id === appointment.id
                     ? { ...apt, status: 'cancelled' as const }
                     : apt
                 )
               );
-            } catch (error: any) {
-              console.error('Failed to cancel appointment:', error);
-              Alert.alert(
-                'Cancellation Failed',
-                error.response?.data?.message || error.message || 'Failed to cancel appointment. Please try again.'
-              );
+
+              Alert.alert('Success', 'Appointment cancelled successfully');
+            } catch (err: any) {
+              console.error('Cancel error:', err);
+              Alert.alert('Error', 'Failed to cancel appointment');
+            } finally {
+              setProcessing(prev => ({ ...prev, [appointment.id]: false }));
             }
-          },
-        },
+          }
+        }
       ]
     );
-  };
+  }, []);
 
-  const handleRebook = (appointment: ApiAppointment) => {
-    console.log('Rebook appointment:', appointment);
-    // The AppointmentFormModal will handle the rebooking with pre-selected service
-  };
+  // Reschedule appointment
+  const rescheduleAppointment = useCallback(async (appointment: Appointment) => {
+    Alert.alert(
+      'Reschedule Appointment',
+      'Would you like to reschedule this appointment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reschedule',
+          onPress: () => {
+            // For now, show a simple prompt - you can enhance this later
+            Alert.alert('Info', 'Please call the clinic to reschedule: +63 123 456 7890');
+          }
+        }
+      ]
+    );
+  }, []);
 
-  const handleRate = (appointment: ApiAppointment) => {
-    console.log('Rate appointment:', appointment);
-    // The RateServiceModal will handle the rating submission
-  };
+  // Rate service
+  const rateService = useCallback((appointment: Appointment) => {
+    setRatingModal({ visible: true, appointment });
+  }, []);
 
-  const handleRatingSuccess = async () => {
-    // Refresh feedbacks after rating is submitted
+  // Handle rating submission
+  const handleRatingSubmit = useCallback(async (rating: number) => {
+    if (!ratingModal.appointment) return;
+
     try {
-      const feedbackResponse = await FeedbackService.getFeedbacks();
-      const feedbacks = Array.isArray(feedbackResponse) 
-        ? feedbackResponse 
-        : (Array.isArray(feedbackResponse.data) ? feedbackResponse.data : []);
-      setUserFeedbacks(feedbacks);
-    } catch (error) {
-      console.warn('Failed to refresh feedbacks:', error);
-      setUserFeedbacks([]); // Set empty array as fallback
+      setProcessing(prev => ({ ...prev, [ratingModal.appointment!.id]: true }));
+
+      await FeedbackService.createFeedback({
+        appointment_id: ratingModal.appointment.id,
+        rating,
+        comment: `Rating for ${ratingModal.appointment.service?.service_name}`
+      });
+
+      setRatingModal({ visible: false, appointment: null });
+      Alert.alert('Success', 'Thank you for your feedback!');
+    } catch (err: any) {
+      console.error('Rating error:', err);
+      Alert.alert('Error', 'Failed to submit rating');
+    } finally {
+      setProcessing(prev => ({ ...prev, [ratingModal.appointment!.id]: false }));
     }
-    // Also refresh appointments to ensure consistency
-    loadAppointments();
+  }, [ratingModal.appointment]);
+
+  // Close rating modal
+  const closeRatingModal = useCallback(() => {
+    setRatingModal({ visible: false, appointment: null });
+  }, []);
+
+  // Book again
+  const bookAgain = useCallback((appointment: Appointment) => {
+    Alert.alert(
+      'Book Again',
+      `Book ${appointment.service?.service_name} again?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Book',
+          onPress: () => {
+            Alert.alert('Info', 'Please call the clinic to book: +63 123 456 7890');
+          }
+        }
+      ]
+    );
+  }, []);
+
+  // Filter appointments
+  const filteredAppointments = appointments.filter(apt =>
+    statusFilter === 'all' || apt.status === statusFilter
+  );
+
+  // Status badge color
+  const getStatusColor = (status: AppointmentStatus) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500';
+      case 'confirmed': return 'bg-blue-500';
+      case 'completed': return 'bg-green-500';
+      case 'cancelled': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
   };
 
-  const handleBookingSuccess = () => {
-    // Refresh appointments after new booking is created
+  // Load data on mount
+  useEffect(() => {
     loadAppointments();
-  };
+  }, [loadAppointments]);
 
-  const hasFeedback = (appointmentId: number): boolean => {
-    if (!userFeedbacks || !Array.isArray(userFeedbacks)) {
-      return false;
-    }
-    return userFeedbacks.some(feedback => feedback.appointment_id === appointmentId);
-  };
+  // Loading state
+  if (loading) {
+    return (
+      <View className="flex-1 bg-secondary/30 justify-center items-center">
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text className="mt-4 text-muted-foreground">Loading appointments...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-secondary/30">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Header */}
         <View className="px-6 pt-12 pb-6">
-          <Text className="text-3xl font-bold text-foreground mb-4">My Appointments</Text>
-
-          {/* Filter Dropdowns */}
-          {!isLoading && (
-            <View className="mb-4 space-y-3">
-              {/* Status Filter */}
-              <View>
-                <Text className="text-sm font-medium text-muted-foreground mb-2">Filter by Status</Text>
-                <DropdownMenu>
-                  <DropdownMenuTrigger>
-                    <View className="flex-row items-center justify-between p-3 border border-border rounded-md bg-background">
-                      <Text className="text-foreground font-medium">
-                        {getStatusFilterOptions().find(option => option.key === selectedStatusFilter)?.label || 'All Status'}
-                        {getStatusFilterOptions().find(option => option.key === selectedStatusFilter)?.count !== undefined &&
-                          ` (${getStatusFilterOptions().find(option => option.key === selectedStatusFilter)?.count})`
-                        }
-                      </Text>
-                      <ChevronDown size={16} className="text-muted-foreground ml-2" />
-                    </View>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56">
-                    {getStatusFilterOptions().map((option) => (
-                      <DropdownMenuItem
-                        key={option.key}
-                        onPress={() => setSelectedStatusFilter(option.key)}
-                        className={selectedStatusFilter === option.key ? "bg-accent" : ""}
-                      >
-                        <Text className={selectedStatusFilter === option.key ? "text-accent-foreground font-medium" : "text-foreground"}>
-                          {option.label} ({option.count})
-                        </Text>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </View>
-
-              {/* Date Filter */}
-              <View>
-                <Text className="text-sm font-medium text-muted-foreground mb-2">Filter by Date</Text>
-                <DropdownMenu>
-                  <DropdownMenuTrigger>
-                    <View className="flex-row items-center justify-between p-3 border border-border rounded-md bg-background">
-                      <Text className="text-foreground font-medium">
-                        {getDateFilterOptions().find(option => option.key === selectedDateFilter)?.label || 'All Time'}
-                        {getDateFilterOptions().find(option => option.key === selectedDateFilter)?.count !== undefined &&
-                          ` (${getDateFilterOptions().find(option => option.key === selectedDateFilter)?.count})`
-                        }
-                      </Text>
-                      <ChevronDown size={16} className="text-muted-foreground ml-2" />
-                    </View>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56">
-                    {getDateFilterOptions().map((option) => (
-                      <DropdownMenuItem
-                        key={option.key}
-                        onPress={() => setSelectedDateFilter(option.key)}
-                        className={selectedDateFilter === option.key ? "bg-accent" : ""}
-                      >
-                        <Text className={selectedDateFilter === option.key ? "text-accent-foreground font-medium" : "text-foreground"}>
-                          {option.label} ({option.count})
-                        </Text>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </View>
-            </View>
-          )}
+          <View className="flex-row items-center justify-between">
+            <Text className="text-3xl font-bold text-foreground">Appointments</Text>
+            <Pressable
+              onPress={handleRefresh}
+              className="p-2 rounded-full bg-primary/10"
+            >
+              <Text className="text-lg">🔄</Text>
+            </Pressable>
+          </View>
         </View>
 
-        {/* Loading State */}
-        {isLoading && (
-          <View className="flex-1 justify-center items-center py-12">
-            <ActivityIndicator size="large" />
-            <Text className="text-muted-foreground mt-4">Loading appointments...</Text>
-          </View>
-        )}
+        {/* Filter Buttons */}
+        <View className="px-6 mb-6">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row space-x-2">
+              {(['all', 'pending', 'confirmed', 'completed', 'cancelled'] as const).map((filter) => (
+                <Pressable
+                  key={filter}
+                  onPress={() => setStatusFilter(filter)}
+                  className={`px-4 py-2 rounded-full ${
+                    statusFilter === filter ? 'bg-primary' : 'bg-secondary'
+                  }`}
+                >
+                  <Text
+                    className={`capitalize ${
+                      statusFilter === filter ? 'text-primary-foreground' : 'text-secondary-foreground'
+                    }`}
+                  >
+                    {filter}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
 
         {/* Error State */}
-        {error && !isLoading && (
-          <View className="px-6 items-center py-12">
-            <Text className="text-6xl mb-4">⚠️</Text>
-            <Text className="text-lg font-semibold text-foreground mb-2">
-              Something went wrong
-            </Text>
-            <Text className="text-muted-foreground text-center mb-6">
-              {error}
-            </Text>
-            <Button onPress={loadAppointments}>
-              <Text>Try Again</Text>
-            </Button>
+        {error && (
+          <View className="px-6 mb-6">
+            <Card className="border-red-500/20 bg-red-50/10">
+              <CardContent className="p-4">
+                <Text className="text-red-600 text-center">{error}</Text>
+                <Button
+                  onPress={loadAppointments}
+                  variant="outline"
+                  className="mt-2"
+                >
+                  <Text>Try Again</Text>
+                </Button>
+              </CardContent>
+            </Card>
           </View>
         )}
 
         {/* Appointments List */}
-        {!isLoading && !error && (
-          <View
-            className="px-6"
-            style={{ paddingBottom: Math.max(insets.bottom + 100, 120) }}
-          >
-            {filteredAppointments.length > 0 ? (
-              <View className="gap-3">
-                {filteredAppointments
-                  .sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime())
-                  .map((appointment) => (
-                    <Card key={appointment.id}>
-                      <CardHeader className="pb-3">
-                        <View className="flex-row justify-between items-start">
-                          <CardTitle className="text-lg flex-1 pr-2">
-                            {appointment.service?.service_name || 'Service'}
-                          </CardTitle>
-                          <Badge
-                            variant={getStatusVariant(appointment.status)}
-                            className={
-                              appointment.status === 'completed'
-                                ? 'bg-green-100 border-green-200'
-                                : ''
-                            }
-                          >
-                            <Text
-                              className={`text-xs capitalize font-medium ${appointment.status === 'completed'
-                                  ? 'text-green-800'
-                                  : ''
-                                }`}
-                            >
-                              {appointment.status}
-                            </Text>
-                          </Badge>
-                        </View>
-                      </CardHeader>
-
-                      <CardContent className="space-y-3">
-                        {/* Date & Time */}
-                        <View className="flex-row justify-between">
-                          <Text className="text-muted-foreground">📅 {formatDate(appointment.appointment_date)}</Text>
-                          <Text className="text-muted-foreground">🕒 {appointment.appointment_time}</Text>
-                        </View>
-
-                        {/* Client & Location */}
-                        <View className="space-y-1">
-                          <Text className="text-sm text-muted-foreground">
-                            👤 Client: {appointment.user?.name || 'You'}
-                          </Text>
-                          <Text className="text-sm text-muted-foreground">
-                            📍 Dr. Ve Aesthetic Clinic
-                          </Text>
-                        </View>
-
-                        {/* Duration & Price */}
-                        <View className="flex-row justify-between items-center">
-                          <Text className="text-sm text-muted-foreground">
-                            Duration: {appointment.service?.duration || 60} min
-                          </Text>
-                          <Text className="text-lg font-bold text-primary">
-                            ₱{appointment.service?.price?.toLocaleString() || 0}
-                          </Text>
-                        </View>
-
-                        {/* Action Buttons */}
-                        <View className="pt-2">
-                          {(appointment.status === 'pending' || appointment.status === 'confirmed') && (
-                            <View className="flex-row gap-3">
-                              <RescheduleAppointmentModal
-                                appointment={appointment}
-                                onSuccess={handleReschedule}
-                                trigger={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1"
-                                  >
-                                    <Text>Reschedule</Text>
-                                  </Button>
-                                }
-                              />
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="flex-1"
-                                onPress={() => handleCancel(appointment)}
-                              >
-                                <Text>Cancel</Text>
-                              </Button>
-                            </View>
-                          )}
-
-                          {appointment.status === 'completed' && (
-                            <View className="flex-row gap-3">
-                              <AppointmentFormModal
-                                preselectedService={appointment.service}
-                                onSuccess={handleBookingSuccess}
-                                trigger={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className={hasFeedback(appointment.id) ? "w-full" : "flex-1"}
-                                  >
-                                    <Text>Book Again</Text>
-                                  </Button>
-                                }
-                              />
-                              {!hasFeedback(appointment.id) && (
-                                <RateServiceModal
-                                  appointment={appointment}
-                                  onSuccess={handleRatingSuccess}
-                                  trigger={
-                                    <Button
-                                      size="sm"
-                                      className="flex-1"
-                                    >
-                                      <Text>Rate Service</Text>
-                                    </Button>
-                                  }
-                                />
-                              )}
-                            </View>
-                          )}
-
-                          {appointment.status === 'cancelled' && (
-                            <AppointmentFormModal
-                              preselectedService={appointment.service}
-                              onSuccess={handleBookingSuccess}
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="w-full"
-                                >
-                                  <Text>Book Again</Text>
-                                </Button>
-                              }
-                            />
-                          )}
-                        </View>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </View>
-            ) : (
-              <View className="items-center py-12">
+        <View className="px-6 pb-32">
+          {filteredAppointments.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 items-center">
                 <Text className="text-6xl mb-4">📅</Text>
-                <Text className="text-lg font-semibold text-foreground mb-2">
+                <Text className="text-xl font-semibold text-center mb-2">
                   No appointments found
                 </Text>
-                <Text className="text-muted-foreground text-center mb-6">
-                  {selectedStatusFilter === 'all' && selectedDateFilter === 'all'
-                    ? "You don't have any appointments yet."
-                    : `No appointments found matching your filters.`}
+                <Text className="text-muted-foreground text-center">
+                  {statusFilter === 'all'
+                    ? "You don't have any appointments yet"
+                    : `No ${statusFilter} appointments`
+                  }
                 </Text>
-                <Button onPress={() => console.log('Book appointment')}>
-                  <Text>Book Your First Appointment</Text>
-                </Button>
-              </View>
-            )}
-          </View>
-        )}
+              </CardContent>
+            </Card>
+          ) : (
+            filteredAppointments.map((appointment) => (
+              <Card key={appointment.id} className="mb-4">
+                <CardHeader>
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1">
+                      <CardTitle className="text-lg">
+                        {appointment.service?.service_name || 'Service'}
+                      </CardTitle>
+                      <Text className="text-sm text-muted-foreground">
+                        ID: #{appointment.id}
+                      </Text>
+                    </View>
+                    <Badge className={`${getStatusColor(appointment.status)} text-white`}>
+                      <Text className="text-white capitalize">{appointment.status}</Text>
+                    </Badge>
+                  </View>
+                </CardHeader>
+
+                <CardContent>
+                  <View className="space-y-3">
+                    {/* Date & Time */}
+                    <View className="flex-row items-center">
+                      <Text className="text-base mr-2">📅</Text>
+                      <Text className="flex-1">
+                        {appointment.appointment_date} at {appointment.appointment_time}
+                      </Text>
+                    </View>
+
+                    {/* Price */}
+                    {appointment.service?.price && (
+                      <View className="flex-row items-center">
+                        <Text className="text-base mr-2">💰</Text>
+                        <Text className="flex-1">₱{appointment.service.price}</Text>
+                      </View>
+                    )}
+
+                    {/* Notes */}
+                    {appointment.notes && (
+                      <View className="flex-row items-start">
+                        <Text className="text-base mr-2">📝</Text>
+                        <Text className="flex-1 text-muted-foreground">
+                          {appointment.notes}
+                        </Text>
+                      </View>
+                    )}
+
+                    <Separator className="my-3" />
+
+                    {/* Action Buttons */}
+                    <View className="flex-row flex-wrap gap-2">
+                      {appointment.status === 'pending' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onPress={() => rescheduleAppointment(appointment)}
+                            disabled={processing[appointment.id]}
+                          >
+                            <Text>📅 Reschedule</Text>
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onPress={() => cancelAppointment(appointment)}
+                            disabled={processing[appointment.id]}
+                          >
+                            <Text>{processing[appointment.id] ? '⏳' : '❌'} Cancel</Text>
+                          </Button>
+                        </>
+                      )}
+
+                      {appointment.status === 'confirmed' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onPress={() => rescheduleAppointment(appointment)}
+                            disabled={processing[appointment.id]}
+                          >
+                            <Text>📅 Reschedule</Text>
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onPress={() => cancelAppointment(appointment)}
+                            disabled={processing[appointment.id]}
+                          >
+                            <Text>{processing[appointment.id] ? '⏳' : '❌'} Cancel</Text>
+                          </Button>
+                        </>
+                      )}
+
+                      {appointment.status === 'completed' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onPress={() => rateService(appointment)}
+                            disabled={processing[appointment.id]}
+                          >
+                            <Text>{processing[appointment.id] ? '⏳' : '⭐'} Rate</Text>
+                          </Button>
+                          <Button
+                            size="sm"
+                            onPress={() => bookAgain(appointment)}
+                          >
+                            <Text>🔄 Book Again</Text>
+                          </Button>
+                        </>
+                      )}
+
+                      {appointment.status === 'cancelled' && (
+                        <Button
+                          size="sm"
+                          onPress={() => bookAgain(appointment)}
+                        >
+                          <Text>🔄 Book Again</Text>
+                        </Button>
+                      )}
+                    </View>
+                  </View>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </View>
       </ScrollView>
 
       <BottomNavigation />
+
+      {/* Rating Modal */}
+      <SimpleRatingModal
+        visible={ratingModal.visible}
+        serviceName={ratingModal.appointment?.service?.service_name || 'Service'}
+        onClose={closeRatingModal}
+        onSubmit={handleRatingSubmit}
+        loading={ratingModal.appointment ? processing[ratingModal.appointment.id] : false}
+      />
     </View>
   );
 }

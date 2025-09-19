@@ -37,13 +37,9 @@ export default function ServicesScreen() {
     setError(null);
 
     try {
-      console.log('=== SERVICES LOADING PROCESS ===');
-      console.log('Auth context user:', authUser);
-      console.log('Is authenticated:', isAuthenticated);
 
       // Check authentication first
       if (!isAuthenticated || !authUser) {
-        console.log('❌ Not authenticated, redirecting to login');
         router.replace('/login');
         return;
       }
@@ -51,7 +47,6 @@ export default function ServicesScreen() {
       // Ensure user is authenticated and token is set
       const token = await AuthStorage.getToken();
       if (!token) {
-        console.log('❌ No token found, redirecting to login');
         router.replace('/login');
         return;
       }
@@ -60,39 +55,22 @@ export default function ServicesScreen() {
       const { AuthService } = await import('~/lib/api');
       AuthService.setToken(token);
 
-      console.log('=== LOADING SERVICES AND CATEGORIES ===');
-      console.log('Auth token available:', token ? 'Yes' : 'No');
-      console.log('Token preview:', token.substring(0, 20) + '...');
-      console.log('User ID:', authUser?.id || authUser?.data?.id);
-      console.log('=======================================');
 
       // Load services and categories separately to isolate 403 errors
-      console.log('🔄 Loading services...');
       const servicesResponse = await ClinicServiceApi.getServices();
-      console.log('✅ Services loaded successfully');
 
-      console.log('🔄 Loading categories...');
       let categoriesResponse;
       try {
         categoriesResponse = await CategoryService.getCategories();
-        console.log('✅ Categories loaded successfully');
       } catch (categoriesError: any) {
-        console.error('❌ Categories failed with error:', categoriesError);
-        console.error('Categories error status:', categoriesError.response?.status);
-        console.error('Categories error message:', categoriesError.message);
         // Set empty array if categories fail
         categoriesResponse = [];
       }
 
-      console.log('=== API RESPONSES ===');
-      console.log('Services response:', servicesResponse);
-      console.log('Categories response:', categoriesResponse);
-      console.log('====================');
 
       setServices(servicesResponse.data || []);
       setCategories(Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse.data || categoriesResponse || []));
     } catch (error: any) {
-      console.error('Failed to load data:', error);
       if (error.response?.status === 401) {
         await AuthStorage.clearAll();
         router.replace('/login');

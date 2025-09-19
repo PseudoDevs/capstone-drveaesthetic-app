@@ -58,11 +58,6 @@ export default function LoginScreen() {
         password: password,
       });
 
-      console.log('=== LOGIN RESPONSE ===');
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      console.log('Token:', response.token);
-      console.log('User:', JSON.stringify(response.user, null, 2));
-      console.log('======================');
 
       // Use AuthContext login method
       await login(response.token, response.user);
@@ -70,12 +65,6 @@ export default function LoginScreen() {
       // Navigate to home
       router.replace('/home');
     } catch (error: any) {
-      console.log('=== LOGIN ERROR ===');
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error response status:', error.response?.status);
-      console.log('===================');
       
       if (error.response?.data?.errors) {
         const newErrors: { email?: string; password?: string; general?: string } = {};
@@ -118,15 +107,10 @@ export default function LoginScreen() {
     setIsGoogleLoading(true);
     
     try {
-      console.log('=== STARTING GOOGLE BROWSER LOGIN ===');
 
       // Use simple Expo-compatible Google authentication
       const response = await AuthService.authenticateWithGoogleSimple();
 
-      console.log('=== GOOGLE BROWSER LOGIN SUCCESS ===');
-      console.log('User:', JSON.stringify(response.user, null, 2));
-      console.log('Token:', response.token);
-      console.log('====================================');
 
       // Use AuthContext login method
       await login(response.token, response.user);
@@ -134,9 +118,6 @@ export default function LoginScreen() {
       // Navigate to home
       router.replace('/home');
     } catch (error: any) {
-      console.log('=== GOOGLE BROWSER LOGIN ERROR ===');
-      console.error('Full error:', error);
-      console.log('==================================');
       
       setErrors({ 
         general: error.message || 'Google Sign-In failed. Please try again.' 

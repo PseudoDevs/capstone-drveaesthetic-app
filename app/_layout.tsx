@@ -8,6 +8,8 @@ import { Platform } from 'react-native';
 import { NAV_THEME } from '~/lib/constants';
 import { PortalHost } from '@rn-primitives/portal';
 import { AuthProvider } from '~/lib/context/AuthContext';
+import { NavigationErrorBoundary } from '~/components/NavigationErrorBoundary';
+import { SessionAwareRouter } from '~/components/SessionAwareRouter';
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
@@ -31,10 +33,12 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <ThemeProvider value={LIGHT_THEME}>
-        <StatusBar style="dark" />
-        <Stack>
+    <NavigationErrorBoundary>
+      <AuthProvider>
+        <SessionAwareRouter>
+          <ThemeProvider value={LIGHT_THEME}>
+            <StatusBar style="dark" />
+            <Stack>
         <Stack.Screen
           name='index'
           options={{
@@ -100,7 +104,9 @@ export default function RootLayout() {
         </Stack>
         <PortalHost />
       </ThemeProvider>
+        </SessionAwareRouter>
     </AuthProvider>
+    </NavigationErrorBoundary>
   );
 }
 

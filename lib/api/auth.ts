@@ -45,10 +45,6 @@ export class AuthService {
       if (credentials.date_of_birth) registrationData.date_of_birth = credentials.date_of_birth;
       if (credentials.address) registrationData.address = credentials.address;
 
-      console.log('=== REGISTRATION REQUEST ===');
-      console.log('Endpoint:', API_ENDPOINTS.AUTH.REGISTER);
-      console.log('Request data:', JSON.stringify(registrationData, null, 2));
-      console.log('============================');
 
       const apiResponse = await apiClient.post<any>(
         API_ENDPOINTS.AUTH.REGISTER,
@@ -89,16 +85,13 @@ export class AuthService {
       await WebBrowser.warmUpAsync();
 
       // Step 1: Get Google redirect URL from your Laravel API (following Socialite pattern)
-      console.log('=== FETCHING GOOGLE AUTH URL FROM API ===');
       
       let authUrl: string;
       try {
         // Check if your API has an auth endpoint to generate the redirect URL
         const authResponse = await apiClient.get<{ url: string }>('/client/auth/google/redirect?mobile=1');
         authUrl = authResponse.url;
-        console.log('Got auth URL from API:', authUrl);
       } catch (apiError) {
-        console.log('API redirect endpoint not available, using direct Google URL');
         
         // Fallback: Build the auth URL directly (your current web approach)
         const redirectUri = 'https://drveaestheticclinic.online/auth/google/callback';
@@ -114,9 +107,6 @@ export class AuthService {
         }).toString()}`;
       }
 
-      console.log('=== GOOGLE BROWSER AUTH URL ===');
-      console.log('Auth URL:', authUrl);
-      console.log('===============================');
 
       // Step 2: Open authentication session
       const result = await WebBrowser.openAuthSessionAsync(
@@ -124,12 +114,6 @@ export class AuthService {
         'https://drveaestheticclinic.online' // Base domain for callback
       );
 
-      console.log('=== GOOGLE BROWSER AUTH RESULT ===');
-      console.log('Result type:', result.type);
-      if (result.type === 'success') {
-        console.log('Result URL:', result.url);
-      }
-      console.log('==================================');
 
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
@@ -145,10 +129,6 @@ export class AuthService {
 
         if (accessToken) {
           // If we got tokens directly, use them
-          console.log('=== TOKENS FROM CALLBACK ===');
-          console.log('Access Token Present:', !!accessToken);
-          console.log('ID Token Present:', !!idToken);
-          console.log('============================');
 
           return await this.loginWithGoogleToken(accessToken, idToken || undefined);
         } else {
@@ -164,7 +144,6 @@ export class AuthService {
               try {
                 userData = JSON.parse(decodeURIComponent(user));
               } catch (e) {
-                console.warn('Failed to parse user data from URL');
               }
             }
 
@@ -184,9 +163,6 @@ export class AuthService {
             const state = url.searchParams.get('state');
 
             if (code) {
-              console.log('=== EXCHANGING AUTH CODE ===');
-              console.log('Auth code present, exchanging for tokens...');
-              console.log('============================');
 
               // Exchange the authorization code for tokens using Google's token endpoint
               try {
@@ -216,7 +192,6 @@ export class AuthService {
                   throw new Error('No access token received from Google');
                 }
               } catch (exchangeError) {
-                console.error('Failed to exchange auth code:', exchangeError);
                 throw new Error('Failed to complete Google authentication');
               }
             } else {
@@ -230,9 +205,6 @@ export class AuthService {
         throw new Error('Google Sign-In failed');
       }
     } catch (error: any) {
-      console.error('=== GOOGLE BROWSER SIGN-IN ERROR ===');
-      console.error('Error:', error);
-      console.error('====================================');
 
       throw new Error(error.message || 'Google Sign-In failed');
     } finally {
@@ -247,27 +219,12 @@ export class AuthService {
         id_token: idToken,
       };
 
-      console.log('=== GOOGLE API LOGIN REQUEST ===');
-      console.log('Full URL:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.AUTH.GOOGLE_LOGIN}`);
-      console.log('Endpoint:', API_ENDPOINTS.AUTH.GOOGLE_LOGIN);
-      console.log('Access Token Length:', accessToken?.length || 0);
-      console.log('ID Token Present:', !!idToken);
-      console.log('Request Data:', JSON.stringify(credentials, null, 2));
-      console.log('================================');
 
       const response = await apiClient.post<GoogleLoginResponse>(
         API_ENDPOINTS.AUTH.GOOGLE_LOGIN,
         credentials
       );
 
-      console.log('=== GOOGLE API LOGIN RESPONSE ===');
-      console.log('Success:', response.success);
-      console.log('Message:', response.message);
-      console.log('Is New User:', response.is_new_user);
-      console.log('User:', JSON.stringify(response.user, null, 2));
-      console.log('Access Token:', response.access_token ? 'Present' : 'Missing');
-      console.log('Token Type:', response.token_type);
-      console.log('=================================');
 
       // Convert to LoginResponse format
       const loginResponse: LoginResponse = {
@@ -283,16 +240,6 @@ export class AuthService {
 
       return loginResponse;
     } catch (error: any) {
-      console.error('=== GOOGLE API LOGIN ERROR ===');
-      console.error('Error Message:', error.message);
-      console.error('Error Response Status:', error.response?.status);
-      console.error('Error Response Headers:', error.response?.headers);
-      console.error('Error Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('Request Config:', error.config);
-      console.error('Request URL:', error.config?.url);
-      console.error('Request Method:', error.config?.method);
-      console.error('Request Data:', error.config?.data);
-      console.error('==============================');
 
       // Provide more specific error messages based on the API response
       if (error.response?.data?.message) {
@@ -310,14 +257,12 @@ export class AuthService {
   static async signOutGoogle(): Promise<void> {
     // With Expo AuthSession, we just clear local state
     // The actual Google session is handled by the browser
-    console.log('Google sign out completed');
   }
 
   static async logout(): Promise<void> {
     try {
       await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (error) {
-      console.warn('Logout request failed:', error);
     } finally {
       // Sign out from Google as well
       this.signOutGoogle();
@@ -338,22 +283,115 @@ export class AuthService {
       const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.PROFILE);
       return response;
     } catch (error) {
-      console.warn('Could not get current user:', error);
       return null;
+    }
+  }
+
+  // Enhanced placeholder data detection
+  static isPlaceholderData(user: any): boolean {
+    if (!user) return false;
+
+    const email = user.email?.toLowerCase() || '';
+    const name = user.name?.toLowerCase() || '';
+
+    // Check for common placeholder patterns
+    const placeholderPatterns = [
+      'example.com',
+      'test@',
+      'dummy@',
+      'placeholder@',
+      'fake@',
+      'sample@',
+      '@example',
+      '@test',
+      '@dummy'
+    ];
+
+    const namePlaceholderPatterns = [
+      'test',
+      'example',
+      'dummy',
+      'placeholder',
+      'fake',
+      'sample',
+      'user',
+      'demo',
+      'john doe',
+      'jane doe'
+    ];
+
+    // Check email patterns
+    for (const pattern of placeholderPatterns) {
+      if (email.includes(pattern)) {
+        return true;
+      }
+    }
+
+    // Check name patterns
+    for (const pattern of namePlaceholderPatterns) {
+      if (name.includes(pattern)) {
+        return true;
+      }
+    }
+
+    // Check for generic IDs (usually placeholder data has low IDs like 1, 2, 3)
+    if (user.id && user.id <= 10) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Try to get real user data from alternative sources
+  static async getRealUserData(): Promise<User | null> {
+    try {
+      // First try to get from secure storage
+      const { AuthStorage } = await import('~/lib/api');
+      const cachedUser = await AuthStorage.getUser();
+
+      if (cachedUser && !this.isPlaceholderData(cachedUser)) {
+        return cachedUser;
+      }
+
+      // Try alternative endpoints if available
+      try {
+        // If we have cached user ID, try the specific user endpoint
+        if (cachedUser?.id) {
+          const { ProfileService } = await import('~/lib/api');
+          const profileUser = await ProfileService.getProfile(cachedUser.id);
+
+          if (profileUser && !this.isPlaceholderData(profileUser)) {
+            return profileUser;
+          }
+        }
+      } catch (profileError) {
+        // Fail silently
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Force logout and clear all placeholder data
+  static async forceLogoutDueToPlaceholderData(): Promise<void> {
+    try {
+      // Clear all storage
+      const { AuthStorage } = await import('~/lib/api');
+      await AuthStorage.clearAll();
+      this.clearToken();
+    } catch (error) {
+      // Fail silently
     }
   }
 
   static async sendTestNotification(): Promise<void> {
     try {
-      console.log('=== SENDING TEST NOTIFICATION ===');
-
       // Show a local notification using our notification service
       const NotificationService = (await import('~/lib/notifications/NotificationService')).default;
       await NotificationService.showTestNotification();
-
-      console.log('Test notification sent successfully');
     } catch (error: any) {
-      console.error('Failed to send test notification:', error);
       throw new Error(error.message || 'Failed to send test notification');
     }
   }
@@ -363,7 +401,6 @@ export class AuthService {
       const response = await apiClient.get<{ unread_count: number }>('/client/mobile/chat/unread-count');
       return response.unread_count || 0;
     } catch (error: any) {
-      console.error('Failed to get unread message count:', error);
       return 0;
     }
   }
@@ -371,7 +408,6 @@ export class AuthService {
   // Simple Google Authentication using WebBrowser (Expo compatible)
   static async authenticateWithGoogleSimple(): Promise<LoginResponse> {
     try {
-      console.log('=== SIMPLE GOOGLE AUTH ===');
       
       // Configure WebBrowser
       this.configureWebBrowser();
@@ -381,8 +417,6 @@ export class AuthService {
         ? 'http://localhost:8081' 
         : AuthSession.makeRedirectUri({ useProxy: true });
       
-      console.log('=== REDIRECT SETUP ===');
-      console.log('Redirect URI:', redirectUri);
       
       // Build auth URL manually (simpler approach)
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
@@ -394,8 +428,6 @@ export class AuthService {
         prompt: 'select_account',
       }).toString()}`;
 
-      console.log('=== OPENING BROWSER ===');
-      console.log('Auth URL:', authUrl);
 
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
@@ -403,8 +435,6 @@ export class AuthService {
         throw new Error(result.type === 'cancel' ? 'Google Sign-In was cancelled' : 'Google Sign-In failed');
       }
 
-      console.log('=== AUTH SUCCESS ===');
-      console.log('Result URL:', result.url);
 
       // Parse the result URL
       const url = new URL(result.url);
@@ -419,7 +449,6 @@ export class AuthService {
         throw new Error('No authorization code received');
       }
 
-      console.log('=== EXCHANGING CODE FOR TOKEN ===');
 
       // Exchange code for token
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -441,23 +470,18 @@ export class AuthService {
         throw new Error(`Token exchange failed: ${tokens.error || 'Unknown error'}`);
       }
 
-      console.log('=== TOKEN RECEIVED ===');
-      console.log('Access Token Present:', !!tokens.access_token);
 
       if (!tokens.access_token) {
         throw new Error('No access token received');
       }
 
       // Call your mobile API
-      console.log('=== CALLING MOBILE API ===');
       
       const response = await apiClient.post<any>(
         API_ENDPOINTS.AUTH.MOBILE_GOOGLE,
         { access_token: tokens.access_token }
       );
 
-      console.log('=== API SUCCESS ===');
-      console.log('User:', response.data.user.name);
 
       const loginResponse: LoginResponse = {
         user: response.data.user,
@@ -469,8 +493,6 @@ export class AuthService {
       return loginResponse;
 
     } catch (error: any) {
-      console.error('=== GOOGLE AUTH ERROR ===');
-      console.error('Error:', error);
       throw new Error(error.message || 'Google Sign-In failed');
     }
   }
@@ -478,7 +500,6 @@ export class AuthService {
   // Modern Google Authentication using PKCE flow (backup method)
   static async authenticateWithGoogleModern(): Promise<LoginResponse> {
     try {
-      console.log('=== MODERN GOOGLE AUTH WITH PKCE ===');
       
       // Step 1: Set up PKCE parameters
       const redirectUri = AuthSession.makeRedirectUri({ 
@@ -486,8 +507,7 @@ export class AuthService {
         path: 'auth'
       });
       
-      console.log('Redirect URI:', redirectUri);
-      
+
       // Generate PKCE challenge
       const codeChallenge = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
@@ -495,9 +515,6 @@ export class AuthService {
         { encoding: Crypto.CryptoEncoding.BASE64URL }
       );
       
-      console.log('=== PKCE SETUP ===');
-      console.log('Code Challenge Generated');
-      console.log('Redirect URI:', redirectUri);
       
       // Step 2: Create authorization request
       const authRequestConfig = {
@@ -516,15 +533,12 @@ export class AuthService {
       const authRequest = new AuthSession.AuthRequest(authRequestConfig);
       
       // Step 3: Open authentication session
-      console.log('=== OPENING AUTH SESSION ===');
       
       const authResult = await authRequest.promptAsync({
         authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
         useProxy: false, // Don't use deprecated proxy
       });
 
-      console.log('=== AUTH RESULT ===');
-      console.log('Type:', authResult.type);
       
       if (authResult.type !== 'success') {
         throw new Error(authResult.type === 'cancel' ? 'Google Sign-In was cancelled' : 'Google Sign-In failed');
@@ -538,7 +552,6 @@ export class AuthService {
         throw new Error('No authorization code received from Google');
       }
 
-      console.log('=== AUTHORIZATION CODE RECEIVED ===');
       
       // Step 4: Exchange authorization code for access token
       const tokenResult = await AuthSession.exchangeCodeAsync(
@@ -555,26 +568,18 @@ export class AuthService {
         }
       );
 
-      console.log('=== TOKEN EXCHANGE RESULT ===');
-      console.log('Access Token Present:', !!tokenResult.accessToken);
       
       if (!tokenResult.accessToken) {
         throw new Error('No access token received from Google');
       }
 
       // Step 5: Use access token with your mobile API endpoint
-      console.log('=== CALLING MOBILE API ENDPOINT ===');
       
       const response = await apiClient.post<any>(
         API_ENDPOINTS.AUTH.MOBILE_GOOGLE,
         { access_token: tokenResult.accessToken }
       );
 
-      console.log('=== MOBILE API RESPONSE ===');
-      console.log('Success:', response.success);
-      console.log('Message:', response.message);
-      console.log('User:', JSON.stringify(response.data.user, null, 2));
-      console.log('Token Present:', !!response.data.access_token);
 
       // Convert to LoginResponse format
       const loginResponse: LoginResponse = {
@@ -589,9 +594,6 @@ export class AuthService {
       return loginResponse;
 
     } catch (error: any) {
-      console.error('=== MODERN GOOGLE AUTH ERROR ===');
-      console.error('Error:', error);
-      console.error('=================================');
       
       throw new Error(error.message || 'Google Sign-In failed');
     }
@@ -602,31 +604,20 @@ export class AuthService {
     try {
       await WebBrowser.warmUpAsync();
 
-      console.log('=== LARAVEL SOCIALITE GOOGLE AUTH ===');
       
       // Step 1: Open browser to your Laravel Google auth route
       // Add mobile parameters to identify this as a mobile request
       const authUrl = 'https://drveaestheticclinic.online/auth/google?mobile=1&app_scheme=capstone-aesthetic-app&redirect_success=capstone-aesthetic-app://auth/success';
       
-      console.log('Opening Laravel Google auth:', authUrl);
       
       const result = await WebBrowser.openAuthSessionAsync(
         authUrl,
         'capstone-aesthetic-app://' // Expect redirect back to app scheme
       );
 
-      console.log('=== AUTH SESSION RESULT ===');
-      console.log('Result type:', result.type);
-      console.log('Result URL:', result.url);
-      console.log('===========================');
 
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
-        console.log('=== PARSING CALLBACK URL ===');
-        console.log('Scheme:', url.protocol);
-        console.log('Host:', url.hostname);
-        console.log('Pathname:', url.pathname);
-        console.log('Search params:', url.search);
         
         // Check for success indicators in mobile app scheme
         const success = url.searchParams.get('success');
@@ -640,14 +631,12 @@ export class AuthService {
 
         if (token) {
           // Direct token from Laravel callback
-          console.log('=== MOBILE AUTH SUCCESS WITH TOKEN ===');
           
           let userData = null;
           if (user) {
             try {
               userData = JSON.parse(decodeURIComponent(user));
             } catch (e) {
-              console.warn('Could not parse user data');
             }
           }
 
@@ -662,9 +651,6 @@ export class AuthService {
         }
 
         if (success === 'true') {
-          console.log('=== MOBILE AUTH SUCCESS - NO TOKEN ===');
-          console.log('Authentication succeeded but no token provided');
-          console.log('This means your Laravel callback needs to be updated');
           throw new Error('Authentication successful but Laravel callback needs to provide token for mobile apps');
         }
 
@@ -675,9 +661,6 @@ export class AuthService {
         throw new Error('Google Sign-In failed');
       }
     } catch (error: any) {
-      console.error('=== SOCIALITE GOOGLE AUTH ERROR ===');
-      console.error('Error:', error);
-      console.error('==================================');
       
       throw new Error(error.message || 'Google Sign-In failed');
     } finally {

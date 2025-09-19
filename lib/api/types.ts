@@ -144,6 +144,12 @@ export interface ApiResponse<T> {
   status?: string;
 }
 
+export interface ApiSuccessResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
+
 export interface ClinicServicesResponse {
   data: ClinicService[];
 }

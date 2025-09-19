@@ -9,7 +9,7 @@ export class AuthStorage {
     try {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
     } catch (error) {
-      console.error('Failed to save token:', error);
+      // Token save failed - silently handled
     }
   }
 
@@ -17,7 +17,7 @@ export class AuthStorage {
     try {
       return await SecureStore.getItemAsync(TOKEN_KEY);
     } catch (error) {
-      console.error('Failed to get token:', error);
+      // Token retrieval failed - return null
       return null;
     }
   }
@@ -26,7 +26,7 @@ export class AuthStorage {
     try {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
     } catch (error) {
-      console.error('Failed to remove token:', error);
+      // Token removal failed - silently handled
     }
   }
 
@@ -34,7 +34,7 @@ export class AuthStorage {
     try {
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
     } catch (error) {
-      console.error('Failed to save user:', error);
+      // User save failed - silently handled
     }
   }
 
@@ -43,7 +43,7 @@ export class AuthStorage {
       const userString = await SecureStore.getItemAsync(USER_KEY);
       return userString ? JSON.parse(userString) : null;
     } catch (error) {
-      console.error('Failed to get user:', error);
+      // User retrieval failed - return null
       return null;
     }
   }
@@ -52,7 +52,7 @@ export class AuthStorage {
     try {
       await SecureStore.deleteItemAsync(USER_KEY);
     } catch (error) {
-      console.error('Failed to remove user:', error);
+      // User removal failed - silently handled
     }
   }
 

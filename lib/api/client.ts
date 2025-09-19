@@ -23,9 +23,6 @@ class ApiClient {
       (config) => {
         if (this.authToken) {
           config.headers.Authorization = `Bearer ${this.authToken}`;
-          console.log(`🔐 API Request to ${config.url} with Bearer token`);
-        } else {
-          console.log(`❌ API Request to ${config.url} WITHOUT token`);
         }
         return config;
       },
@@ -37,15 +34,7 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          console.warn('🚨 401 Unauthorized response received');
-          console.log('Request URL:', error.config?.url);
-          console.log('Current token status:', !!this.authToken);
-        } else if (error.response?.status === 403) {
-          console.warn('🚫 403 Forbidden response received');
-          console.log('Request URL:', error.config?.url);
-          console.log('User may not have permission for this resource');
-        }
+        // Handle 401 and 403 errors silently
         return Promise.reject(error);
       }
     );
@@ -53,12 +42,10 @@ class ApiClient {
 
   setAuthToken(token: string) {
     this.authToken = token;
-    console.log('🔑 Bearer token set in API client');
   }
 
   clearAuth() {
     this.authToken = null;
-    console.log('🚪 Bearer token cleared from API client');
   }
 
   hasAuthToken(): boolean {

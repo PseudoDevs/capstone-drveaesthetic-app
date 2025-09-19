@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { View, ScrollView, Pressable, Alert, Platform, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Pressable, Alert, Platform, TouchableOpacity, RefreshControl } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
@@ -23,6 +24,8 @@ import {
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { AuthService, AuthStorage, User, ProfileService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
+import { useRealTimeRefresh } from '~/lib/hooks/useRealTimeRefresh';
+import { RefreshButton } from '~/components/RefreshButton';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -50,102 +53,44 @@ export default function ProfileScreen() {
   // Avatar upload state
   const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
 
+  // Real-time refresh using reusable hook
+  const {
+    isRefreshing,
+    formatLastRefreshTime,
+    refresh: refreshProfileData
+  } = useRealTimeRefresh({
+    onRefresh: async () => {
+      // Refresh user data from API without navigation
+      await refreshUser();
+      // The auth context will update and trigger useEffect to update local state
+      // No navigation needed - just data refresh
+    }
+  });
+
   React.useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        console.log('=== PROFILE LOADING PROCESS ===');
-        console.log('Auth context user:', authUser);
-        console.log('Is authenticated:', isAuthenticated);
-
-        // Always prioritize auth context user data to ensure consistency
-        if (authUser && isAuthenticated) {
-          console.log('✅ Using auth context user data');
-          setUser(authUser);
-          setIsLoading(false);
-          return;
-        }
-
-        // If no auth context user, try getting from storage
-        console.log('🔍 Checking local storage for user data...');
-        const storedUserData = await AuthStorage.getUser();
-        console.log('Stored user data:', storedUserData);
-
-        if (storedUserData) {
-          console.log('✅ Using stored user data');
-          setUser(storedUserData);
-        } else {
-          // If no stored data, try fetching fresh from API
-          console.log('🌐 Fetching fresh user data from API...');
-          try {
-            const token = await AuthStorage.getToken();
-            if (token) {
-              AuthService.setToken(token);
-              const freshUserData = await AuthService.getCurrentUser();
-
-              if (freshUserData) {
-                console.log('✅ Got fresh user data from API:', freshUserData);
-                setUser(freshUserData);
-                // Save to storage for future use
-                await AuthStorage.saveUser(freshUserData);
-              } else {
-                console.log('❌ No user data from API');
-                // Redirect to login if no user data found anywhere
-                router.replace('/login');
-                return;
-              }
-            } else {
-              console.log('❌ No token found, redirecting to login');
-              router.replace('/login');
-              return;
-            }
-          } catch (apiError) {
-            console.error('Failed to fetch user from API:', apiError);
-            // Redirect to login if API fails
-            router.replace('/login');
-            return;
-          }
-        }
-
-        console.log('=== FINAL USER DATA ===');
-        console.log('User set in state:', user);
-        console.log('======================');
-      } catch (error) {
-        console.error('Failed to load user data:', error);
-        router.replace('/login');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadUserData();
+    // Simply use auth context data - let SessionAwareRouter handle navigation
+    if (authUser && isAuthenticated) {
+      setUser(authUser);
+      setIsLoading(false);
+    } else if (!isAuthenticated) {
+      setUser(null);
+      setIsLoading(false);
+    }
   }, [authUser, isAuthenticated]);
 
   // Sync local user state with AuthContext when it updates
   React.useEffect(() => {
     if (authUser && isAuthenticated) {
       setUser(authUser);
-      console.log('Profile screen synced with AuthContext user update');
     }
   }, [authUser]);
 
   const handleEditProfile = () => {
     if (user) {
-      console.log('=== EDIT PROFILE PREFILL ===');
-      console.log('Full user object:', JSON.stringify(user, null, 2));
-      console.log('user.data exists:', !!user.data);
 
       // Handle both nested and direct user data structures
-      const userData = user.data || user;
+      const userData = (user as any).data || user;
 
-      console.log('Using userData:', JSON.stringify(userData, null, 2));
-      console.log('Prefilling fields with:', {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone || '',
-        address: userData.address || '',
-        date_of_birth: userData.date_of_birth || ''
-      });
-      console.log('============================');
 
       setEditName(userData.name || '');
       setEditEmail(userData.email || '');
@@ -171,10 +116,6 @@ export default function ProfileScreen() {
 
     setIsUpdating(true);
     try {
-      console.log('=== UPDATING PROFILE ===');
-      console.log('User ID:', user.id);
-      console.log('Update data:', { name: editName.trim(), email: editEmail.trim() });
-      console.log('========================');
 
       // Ensure authentication token is set
       const token = await AuthStorage.getToken();
@@ -185,22 +126,10 @@ export default function ProfileScreen() {
       AuthService.setToken(token);
 
       // Get user ID from current user data
-      const userId = user?.data?.id || user?.id;
+      const userId = (user as any)?.data?.id || user?.id;
       if (!userId) {
         throw new Error('User ID not found');
       }
-
-      console.log('=== PROFILE UPDATE ATTEMPT ===');
-      console.log('User ID:', userId);
-      console.log('Token available:', !!token);
-      console.log('Update data:', {
-        name: editName.trim(),
-        email: editEmail.trim(),
-        phone: editPhone.trim() || undefined,
-        address: editAddress.trim() || undefined,
-        date_of_birth: editDateOfBirth ? editDateOfBirth.toISOString().split('T')[0] : undefined,
-      });
-      console.log('===============================');
 
       // Try to update via API using new profile endpoint
       const updatedUser = await ProfileService.updateProfile(userId, {
@@ -211,26 +140,15 @@ export default function ProfileScreen() {
         date_of_birth: editDateOfBirth ? editDateOfBirth.toISOString().split('T')[0] : undefined,
       });
 
-      console.log('=== PROFILE UPDATE SUCCESS ===');
-      console.log('Updated user:', updatedUser);
-      console.log('Updated user structure check:');
-      console.log('updatedUser type:', typeof updatedUser);
-      console.log('updatedUser.id:', updatedUser?.id);
-      console.log('updatedUser.name:', updatedUser?.name);
-      console.log('updatedUser.email:', updatedUser?.email);
-      console.log('==============================');
 
       // Ensure we have the user data in the correct format for storage
       const userDataToSave = {
         ...user, // Keep existing structure
-        ...(user?.data ? { data: { ...user.data, ...updatedUser } } : updatedUser),
+        ...((user as any)?.data ? { data: { ...(user as any).data, ...updatedUser } } : updatedUser),
         // Also update direct properties if they exist
         ...updatedUser
       };
 
-      console.log('=== SAVING USER DATA ===');
-      console.log('Data to save:', JSON.stringify(userDataToSave, null, 2));
-      console.log('========================');
 
       // Update local state and auth context with API response
       setUser(userDataToSave);
@@ -238,26 +156,22 @@ export default function ProfileScreen() {
       // Update the auth context directly to keep it in sync
       try {
         await updateUser(userDataToSave);
-        console.log('Auth context updated successfully');
       } catch (updateError) {
-        console.warn('Failed to update auth context, saving to storage directly:', updateError);
         await AuthStorage.saveUser(userDataToSave);
       }
 
       setIsEditDialogOpen(false);
       Alert.alert('Success', 'Profile updated successfully!');
 
+      // Trigger real-time refresh to get latest data
+      setTimeout(() => {
+        refreshProfileData();
+      }, 500);
+
     } catch (error: any) {
-      console.log('=== PROFILE UPDATE ERROR ===');
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error response status:', error.response?.status);
-      console.log('============================');
 
       // If API fails, update locally as fallback
       if (error.response?.status === 404 || error.response?.status === 501) {
-        console.log('API endpoint not available, updating locally');
 
         // Update local state and storage
         const newUserData = {
@@ -273,6 +187,11 @@ export default function ProfileScreen() {
 
         setIsEditDialogOpen(false);
         Alert.alert('Success', 'Profile updated locally! (API endpoint not available)');
+
+        // Trigger real-time refresh even for local updates
+        setTimeout(() => {
+          refreshProfileData();
+        }, 500);
       } else {
         Alert.alert('Error', `Failed to update profile: ${error.response?.data?.message || error.message}`);
       }
@@ -306,9 +225,6 @@ export default function ProfileScreen() {
 
     setIsChangingPassword(true);
     try {
-      console.log('=== CHANGING PASSWORD ===');
-      console.log('Using new password change endpoint');
-      console.log('========================');
 
       await ProfileService.changePassword({
         current_password: currentPassword,
@@ -316,9 +232,6 @@ export default function ProfileScreen() {
         password_confirmation: confirmPassword,
       });
 
-      console.log('=== PASSWORD CHANGE SUCCESS ===');
-      console.log('Password changed successfully');
-      console.log('===============================');
 
       setIsPasswordDialogOpen(false);
       setCurrentPassword('');
@@ -327,12 +240,6 @@ export default function ProfileScreen() {
       Alert.alert('Success', 'Password changed successfully!');
 
     } catch (error: any) {
-      console.log('=== PASSWORD CHANGE ERROR ===');
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error response status:', error.response?.status);
-      console.log('=============================');
 
       const errorMessage = error.response?.data?.message || error.message || 'Failed to change password';
       Alert.alert('Error', errorMessage);
@@ -381,7 +288,6 @@ export default function ProfileScreen() {
         ]
       );
     } catch (error) {
-      console.error('Test notification error:', error);
     }
   };
 
@@ -464,7 +370,6 @@ export default function ProfileScreen() {
         ]
       );
     } catch (error) {
-      console.error('Avatar upload error:', error);
       Alert.alert('Error', 'Failed to open image picker');
     }
   };
@@ -482,7 +387,6 @@ export default function ProfileScreen() {
         await uploadAvatarImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Camera error:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
   };
@@ -500,7 +404,6 @@ export default function ProfileScreen() {
         await uploadAvatarImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Gallery error:', error);
       Alert.alert('Error', 'Failed to select image');
     }
   };
@@ -510,12 +413,6 @@ export default function ProfileScreen() {
 
     setIsUploadingAvatar(true);
     try {
-      console.log('=== UPLOADING AVATAR ===');
-      console.log('Image URI:', imageUri);
-      console.log('User ID:', user?.data?.id || user?.id);
-      console.log('ProfileService available:', !!ProfileService);
-      console.log('ProfileService.uploadAvatar available:', !!ProfileService?.uploadAvatar);
-      console.log('========================');
 
       // Ensure authentication token is set
       const token = await AuthStorage.getToken();
@@ -525,7 +422,7 @@ export default function ProfileScreen() {
       AuthService.setToken(token);
 
       // Get user ID
-      const userId = user?.data?.id || user?.id;
+      const userId = (user as any)?.data?.id || user?.id;
       if (!userId) {
         throw new Error('User ID not found');
       }
@@ -534,24 +431,15 @@ export default function ProfileScreen() {
       const { ProfileService: PS } = await import('~/lib/api');
       const updatedUser = await PS.uploadAvatar(userId, imageUri);
 
-      console.log('=== AVATAR UPLOAD SUCCESS ===');
-      console.log('Updated user:', updatedUser);
-      console.log('New avatar URL:', updatedUser?.avatar);
-      console.log('Avatar URL sample format check:', updatedUser?.avatar?.includes('drveaestheticclinic.online/storage/avatars/'));
-      console.log('=============================');
 
       // Store only the filename from the API response
       const avatarFilename = updatedUser?.avatar;
 
-      console.log('=== SAVING AVATAR DATA ===');
-      console.log('Avatar filename from API:', avatarFilename);
-      console.log('Full avatar URL will be:', avatarFilename ? `https://drveaestheticclinic.online/storage/avatars/${avatarFilename}` : 'No avatar');
-      console.log('==========================');
 
       // Update local state and auth context with filename only
       const userDataToSave = {
         ...user,
-        ...(user?.data ? { data: { ...user.data, ...updatedUser } } : updatedUser),
+        ...((user as any)?.data ? { data: { ...(user as any).data, ...updatedUser } } : updatedUser),
         // Store filename, not full URL
         avatar: avatarFilename
       };
@@ -561,21 +449,18 @@ export default function ProfileScreen() {
       // Update the auth context directly to keep it in sync
       try {
         await updateUser(userDataToSave);
-        console.log('Auth context updated with new avatar');
       } catch (updateError) {
-        console.warn('Failed to update auth context, saving to storage directly:', updateError);
         await AuthStorage.saveUser(userDataToSave);
       }
 
       Alert.alert('Success', 'Avatar updated successfully!');
 
+      // Trigger real-time refresh after avatar update
+      setTimeout(() => {
+        refreshProfileData();
+      }, 500);
+
     } catch (error: any) {
-      console.log('=== AVATAR UPLOAD ERROR ===');
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error response status:', error.response?.status);
-      console.log('===========================');
 
       const errorMessage = error.response?.data?.message || error.message || 'Failed to upload avatar';
       Alert.alert('Error', errorMessage);
@@ -600,14 +485,11 @@ export default function ProfileScreen() {
             try {
               // Call logout API and clear stored data
               await logout();
-
-              // Navigate to login screen
-              router.replace('/login');
+              // Real-time state update - no navigation needed
+              // The AuthContext will update and trigger re-renders automatically
             } catch (error) {
-              console.error('Logout error:', error);
-
-              // Force navigate even if logout fails
-              router.replace('/login');
+              // Force logout even if API fails
+              await logout();
             }
           },
         },
@@ -655,7 +537,9 @@ export default function ProfileScreen() {
           We couldn't load your profile information. Please try logging in again.
         </Text>
         <Button
-          onPress={() => router.replace('/login')}
+          onPress={async () => {
+            await logout();
+          }}
           className="mb-4"
         >
           <Text>Go to Login</Text>
@@ -669,7 +553,6 @@ export default function ProfileScreen() {
               await refreshUser();
               // If successful, the auth context user will be updated and useEffect will trigger
             } catch (error) {
-              console.error('Retry failed:', error);
               // Try direct API call as fallback
               try {
                 const token = await AuthStorage.getToken();
@@ -682,7 +565,6 @@ export default function ProfileScreen() {
                   }
                 }
               } catch (fallbackError) {
-                console.error('Fallback retry failed:', fallbackError);
               }
             } finally {
               setIsLoading(false);
@@ -697,10 +579,34 @@ export default function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refreshProfileData}
+            colors={['#6366f1']} // Primary color for loading indicator
+            tintColor="#6366f1"
+          />
+        }
+      >
         {/* Header */}
         <View className="px-6 pt-12 pb-6">
-          <Text className="text-3xl font-bold text-foreground">Profile</Text>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-foreground">Profile</Text>
+              {formatLastRefreshTime() && (
+                <Text className="text-xs text-muted-foreground mt-1">
+                  Last updated: {formatLastRefreshTime()}
+                </Text>
+              )}
+            </View>
+            <RefreshButton
+              onRefresh={refreshProfileData}
+              isRefreshing={isRefreshing}
+            />
+          </View>
         </View>
 
         {/* User Info Card */}
@@ -712,8 +618,8 @@ export default function ProfileScreen() {
                   <Avatar className="w-24 h-24 mb-4">
                     <AvatarImage
                       source={{
-                        uri: (user?.data || user)?.avatar
-                          ? `https://drveaestheticclinic.online/storage/${(user?.data || user)?.avatar}`
+                        uri: ((user as any)?.data || user)?.avatar
+                          ? `https://drveaestheticclinic.online/storage/${((user as any)?.data || user)?.avatar}`
                           : undefined,
                         // Add cache control for better image loading
                         cache: 'reload'
@@ -721,7 +627,7 @@ export default function ProfileScreen() {
                       style={{ borderRadius: 48 }}
                     />
                     <AvatarFallback>
-                      <Text className="text-2xl">{(user?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
+                      <Text className="text-2xl">{((user as any)?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
                     </AvatarFallback>
                   </Avatar>
 
@@ -739,16 +645,16 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
 
-              <Text className="text-2xl font-bold text-foreground mb-1">{(user?.data || user)?.name || 'User'}</Text>
-              <Text className="text-muted-foreground mb-2">{(user?.data || user)?.email || 'user@example.com'}</Text>
-              {(user?.data || user)?.phone && (
-                <Text className="text-sm text-muted-foreground mb-1">📞 {(user?.data || user).phone}</Text>
+              <Text className="text-2xl font-bold text-foreground mb-1">{((user as any)?.data || user)?.name || 'User'}</Text>
+              <Text className="text-muted-foreground mb-2">{((user as any)?.data || user)?.email || 'user@example.com'}</Text>
+              {((user as any)?.data || user)?.phone && (
+                <Text className="text-sm text-muted-foreground mb-1">📞 {((user as any)?.data || user).phone}</Text>
               )}
-              {(user?.data || user)?.date_of_birth && (
-                <Text className="text-sm text-muted-foreground mb-1">🎂 {(user?.data || user).date_of_birth}</Text>
+              {((user as any)?.data || user)?.date_of_birth && (
+                <Text className="text-sm text-muted-foreground mb-1">🎂 {((user as any)?.data || user).date_of_birth}</Text>
               )}
-              {(user?.data || user)?.address && (
-                <Text className="text-sm text-muted-foreground mb-4">📍 {(user?.data || user).address}</Text>
+              {((user as any)?.data || user)?.address && (
+                <Text className="text-sm text-muted-foreground mb-4">📍 {((user as any)?.data || user).address}</Text>
               )}
 
               <Button onPress={handleEditProfile} className="bg-primary-gradient">
@@ -878,7 +784,12 @@ export default function ProfileScreen() {
                 title="About App"
                 subtitle="Learn more about our app"
                 icon="ℹ️"
-                onPress={() => router.push('/about')}
+                onPress={() => {
+                  Alert.alert(
+                    'About App',
+                    'Dr. Ve Aesthetic Clinic App\n\nVersion: 1.0.0\nDeveloped for clinic management and appointment booking.\n\nFor support: support@drveaestheticclinic.online'
+                  );
+                }}
               />
             </CardContent>
           </Card>

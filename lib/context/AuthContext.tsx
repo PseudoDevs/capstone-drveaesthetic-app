@@ -40,12 +40,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(true);
         // Save user data to storage for persistence
         await AuthStorage.saveUser(currentUser);
-        console.log('User logged in successfully:', currentUser.name);
       } else {
         throw new Error('Failed to get user data after login');
       }
     } catch (error) {
-      console.error('Failed to login:', error);
       // Clean up on login failure
       await AuthStorage.removeToken();
       AuthService.clearToken();
@@ -57,7 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await AuthService.logout();
     } catch (error) {
-      console.warn('Logout API call failed:', error);
+      // Silent error handling for logout API call
     } finally {
       // Always clear local data regardless of API response
       await AuthStorage.clearAll();
@@ -65,7 +63,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
       setIsAuthenticated(false);
       setUnreadCount(0);
-      console.log('User logged out successfully');
     }
   };
 
@@ -74,7 +71,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (isAuthenticated) {
         const token = await AuthStorage.getToken();
         if (!token) {
-          console.warn('No token found during refresh, logging out');
           await logout();
           return;
         }
@@ -83,35 +79,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await AuthService.getCurrentUser();
 
         if (currentUser) {
+          // Update user data from API (placeholder detection removed)
           setUser(currentUser);
           // Update stored user data to keep it fresh
           await AuthStorage.saveUser(currentUser);
-          console.log('User data refreshed successfully');
         } else {
-          console.warn('No user data received during refresh');
+          // Don't clear user data if API doesn't return user data
         }
       }
     } catch (error) {
-      console.error('Failed to refresh user:', error);
-
       // Only logout on 401 errors (invalid token), not on other errors
       if (error && typeof error === 'object' && 'response' in error) {
         const response = error.response as any;
         if (response?.status === 401) {
-          console.warn('Token invalid during refresh, logging out');
           await logout();
         } else {
-          // For other errors, try to use cached user data
-          console.warn('API error during refresh, using cached data:', response?.status);
+          // For other errors (network, 500, etc.), preserve session and use cached data
           try {
             const cachedUser = await AuthStorage.getUser();
             if (cachedUser && !user) {
               setUser(cachedUser);
-              console.log('Using cached user data during API error');
             }
           } catch (storageError) {
-            console.error('Failed to get cached user data:', storageError);
+            // Silent error handling
           }
+        }
+      } else {
+        // For network errors or other non-HTTP errors, preserve session
+        try {
+          const cachedUser = await AuthStorage.getUser();
+          if (cachedUser && !user) {
+            setUser(cachedUser);
+          }
+        } catch (storageError) {
+          // Silent error handling
         }
       }
     }
@@ -119,11 +120,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const updateUser = async (userData: User) => {
     try {
+      // Check for placeholder data (just log, don't block updates)
+      const isPlaceholderData = AuthService.isPlaceholderData(userData);
+
+      if (isPlaceholderData) {
+        // Continue with update - don't block
+      }
+
       setUser(userData);
       await AuthStorage.saveUser(userData);
-      console.log('User data updated in auth context:', userData.name);
     } catch (error) {
-      console.error('Failed to update user data:', error);
       throw error;
     }
   };
@@ -135,64 +141,101 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = await AuthStorage.getToken();
+        // STEP 1: Check local storage for existing session
+        const [token, cachedUser] = await Promise.all([
+          AuthStorage.getToken(),
+          AuthStorage.getUser()
+        ]);
 
-        console.log('=== AUTH CONTEXT INIT ===');
-        console.log('Token found:', token ? 'Yes' : 'No');
+        // STEP 2: No token or user data = No session, auto logout
+        if (!token || !cachedUser) {
+          console.log('No session data found - auto logout:', { hasToken: !!token, hasUser: !!cachedUser });
+          await AuthStorage.clearAll();
+          AuthService.clearToken();
+          setIsAuthenticated(false);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
 
-        if (token) {
-          AuthService.setToken(token);
+        // STEP 3: Token exists, validate cached user data
+        if (cachedUser) {
+          // Check if cached user is placeholder data
+          const isPlaceholderCached = AuthService.isPlaceholderData(cachedUser);
 
-          try {
-            // First try to get cached user data
-            const cachedUser = await AuthStorage.getUser();
-
-            if (cachedUser) {
-              setUser(cachedUser);
-              setIsAuthenticated(true);
-              console.log('Authentication restored with cached data for user:', cachedUser.name);
-
-              // Try to refresh user data in background, but don't fail if it doesn't work
-              try {
-                const currentUser = await AuthService.getCurrentUser();
-                if (currentUser) {
-                  setUser(currentUser);
-                  await AuthStorage.saveUser(currentUser);
-                  console.log('User data refreshed during auth check');
-                }
-              } catch (refreshError) {
-                console.warn('Failed to refresh user data during auth check, using cached data:', refreshError);
-              }
-            } else {
-              // No cached user, try to get from API
-              const currentUser = await AuthService.getCurrentUser();
-              if (currentUser) {
-                setUser(currentUser);
-                setIsAuthenticated(true);
-                await AuthStorage.saveUser(currentUser);
-                console.log('Authentication restored for user:', currentUser.name);
-              } else {
-                throw new Error('No user data available');
-              }
-            }
-          } catch (apiError) {
-            console.error('Failed to verify token during auth check:', apiError);
-            // Token is invalid, clear it
+          if (isPlaceholderCached) {
+            // Clear placeholder data and force fresh login
             await AuthStorage.clearAll();
             AuthService.clearToken();
             setIsAuthenticated(false);
-            console.log('Token invalid, cleared');
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Failed to check auth:', error);
 
-        // Clear invalid token
-        await AuthStorage.removeToken();
+          // Cached user data is valid, restore session immediately
+          AuthService.setToken(token);
+          setUser(cachedUser);
+          setIsAuthenticated(true);
+          setIsLoading(false);
+
+          // STEP 4: Background refresh of user data (optional, non-blocking)
+          setTimeout(async () => {
+            try {
+              const freshUser = await AuthService.getCurrentUser();
+              if (freshUser && !AuthService.isPlaceholderData(freshUser)) {
+                setUser(freshUser);
+                await AuthStorage.saveUser(freshUser);
+              } else {
+                // Keep cached user
+              }
+            } catch (refreshError) {
+              // Keep cached user
+            }
+          }, 1000); // 1 second delay for background refresh
+
+          return;
+        }
+
+        // STEP 5: Token exists but no cached user - verify token validity
+        AuthService.setToken(token);
+
+        try {
+          const currentUser = await AuthService.getCurrentUser();
+
+          if (!currentUser) {
+            throw new Error('No user data received from API');
+          }
+
+          if (AuthService.isPlaceholderData(currentUser)) {
+            // Clear placeholder data and force fresh login
+            await AuthStorage.clearAll();
+            AuthService.clearToken();
+            setIsAuthenticated(false);
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+
+          // Token is valid and user data is real
+          setUser(currentUser);
+          setIsAuthenticated(true);
+          await AuthStorage.saveUser(currentUser);
+
+        } catch (apiError) {
+          // Token is invalid or API returned bad data
+          await AuthStorage.clearAll();
+          AuthService.clearToken();
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+
+      } catch (error) {
+        // Something went wrong, clear everything
+        await AuthStorage.clearAll();
         AuthService.clearToken();
         setIsAuthenticated(false);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }

@@ -63,7 +63,11 @@ export function BottomNavigation() {
   const { unreadCount } = useAuth();
 
   const handleNavPress = (path: string) => {
-    router.push(path as any);
+    try {
+      router.push(path as any);
+    } catch (error) {
+      // Navigation context may not be ready yet, this is acceptable during app startup
+    }
   };
 
   return (

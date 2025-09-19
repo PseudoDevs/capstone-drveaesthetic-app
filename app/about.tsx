@@ -10,7 +10,7 @@ export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   
   const handleContactPress = () => {
-    console.log('Contact pressed');
+    // Contact functionality to be implemented
   };
 
   return (

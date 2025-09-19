@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useRouter } from 'expo-router';
 import { NotificationService } from '~/lib/notifications/NotificationService';
@@ -15,6 +15,62 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
   const appState = useRef(AppState.currentState);
   const notificationService = NotificationService.getInstance();
   const chatPollingService = ChatPollingServiceInstance;
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
+
+  // Check if navigation context is ready
+  useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 50; // Max 5 seconds of retrying
+
+    const checkNavigation = () => {
+      try {
+        // Try to access router to see if navigation context is ready
+        if (router && typeof router.push === 'function') {
+          setIsNavigationReady(true);
+          return;
+        }
+      } catch (error) {
+      }
+
+      // Retry with exponential backoff up to max retries
+      retryCount++;
+      if (retryCount < maxRetries) {
+        const delay = Math.min(100 * retryCount, 1000); // Max 1 second delay
+        setTimeout(checkNavigation, delay);
+      } else {
+      }
+    };
+
+    checkNavigation();
+  }, [router]);
+
+  // Safe navigation function that handles navigation context errors
+  const safeNavigate = (path: string) => {
+    if (!isNavigationReady) {
+      // Retry navigation after a delay
+      setTimeout(() => {
+        if (isNavigationReady) {
+          try {
+            router.push(path as any);
+          } catch (error) {
+          }
+        }
+      }, 1000);
+      return;
+    }
+
+    try {
+      router.push(path as any);
+    } catch (error) {
+      // Retry once after a short delay
+      setTimeout(() => {
+        try {
+          router.push(path as any);
+        } catch (retryError) {
+        }
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -27,21 +83,20 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
       try {
         // Setup notification response listener (when user taps notification)
         notificationResponseUnsubscribe = notificationService.setupNotificationResponseListener((data) => {
-          console.log('Notification tapped with data:', data);
 
           // Navigate based on notification type
           if (data?.type === 'chat' || data?.message_type === 'chat') {
             const conversationId = data?.conversation_id || data?.chat_id;
             if (conversationId) {
-              router.push(`/chat/${conversationId}`);
+              safeNavigate(`/chat/${conversationId}`);
             } else {
-              router.push('/chat');
+              safeNavigate('/chat');
             }
           } else if (data?.type === 'appointment') {
-            router.push('/appointments');
+            safeNavigate('/appointments');
           } else {
             // Default navigation for unknown types
-            router.push('/home');
+            safeNavigate('/home');
           }
         });
 
@@ -51,7 +106,6 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
           onUnreadCountUpdate?.(unreadCount);
           notificationService.setUnreadCount(unreadCount);
         } catch (error) {
-          console.warn('Failed to fetch initial unread count (backend may be offline):', error);
           // Set a default unread count of 0 for development
           onUnreadCountUpdate?.(0);
         }
@@ -60,15 +114,12 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
         try {
           const userData = await AuthService.getCurrentUser();
           if (userData?.id) {
-            console.log('🔄 Starting chat polling service...');
             chatPollingService.startPolling(userData.id, onUnreadCountUpdate);
           }
         } catch (error) {
-          console.warn('Failed to start chat polling service:', error);
         }
 
       } catch (error) {
-        console.error('Failed to setup notifications:', error);
       }
     };
 
@@ -83,7 +134,6 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
           onUnreadCountUpdate?.(unreadCount);
           notificationService.setUnreadCount(unreadCount);
         } catch (error) {
-          console.warn('Failed to refresh unread count on app focus (backend may be offline):', error);
         }
       }
       appState.current = nextAppState;

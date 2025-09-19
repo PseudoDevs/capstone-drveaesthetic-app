@@ -6,6 +6,7 @@ import {
   BookAppointmentData,
   AvailableSlot,
   PaginatedResponse,
+  ApiSuccessResponse,
 } from './types';
 
 export class AppointmentService {
@@ -35,8 +36,16 @@ export class AppointmentService {
     return await apiClient.delete(API_ENDPOINTS.APPOINTMENTS.DELETE(id));
   }
 
-  static async cancelAppointment(id: string): Promise<Appointment> {
-    return await apiClient.put(API_ENDPOINTS.APPOINTMENTS.UPDATE(id), { status: 'cancelled' });
+  static async cancelAppointment(id: string, appointment: Appointment): Promise<ApiSuccessResponse<Appointment>> {
+    const requestBody = {
+      client_id: appointment.user_id,
+      service_id: appointment.service_id,
+      status: 'cancelled',
+      appointment_date: appointment.appointment_date,
+      appointment_time: appointment.appointment_time,
+    };
+
+    return await apiClient.put(API_ENDPOINTS.APPOINTMENTS.UPDATE(id), requestBody);
   }
 
   static async bookAppointment(data: BookAppointmentData): Promise<Appointment> {

@@ -63,9 +63,6 @@ export function RateServiceModal({ appointment, trigger, onSuccess }: RateServic
         comment: comment.trim() || undefined,
       };
 
-      console.log('=== SUBMITTING RATING ===');
-      console.log('Feedback data:', JSON.stringify(feedbackData, null, 2));
-      console.log('=========================');
 
       await FeedbackService.createFeedback(feedbackData);
       
@@ -87,7 +84,6 @@ export function RateServiceModal({ appointment, trigger, onSuccess }: RateServic
         ]
       );
     } catch (error: any) {
-      console.error('Failed to submit rating:', error);
       Alert.alert(
         'Rating Failed',
         error.response?.data?.message || error.message || 'Failed to submit rating. Please try again.'

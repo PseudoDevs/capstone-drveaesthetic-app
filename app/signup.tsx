@@ -100,12 +100,6 @@ export default function SignupScreen() {
         password_confirmation: formData.confirmPassword,
       });
 
-      console.log('=== REGISTRATION RESPONSE ===');
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      console.log('Token:', response.token);
-      console.log('User:', JSON.stringify(response.user, null, 2));
-      console.log('Message:', response.message);
-      console.log('=============================');
       
       // If registration returns a token, save it and go to home
       if (response.token) {
@@ -115,7 +109,6 @@ export default function SignupScreen() {
         
         // Set token in API client for immediate use
         AuthService.setToken(response.token);
-        console.log('Token set in API client after registration');
         
         router.replace('/home');
       } else {
@@ -123,12 +116,6 @@ export default function SignupScreen() {
         router.replace('/login');
       }
     } catch (error: any) {
-      console.log('=== REGISTRATION ERROR ===');
-      console.error('Full error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error response status:', error.response?.status);
-      console.log('==========================');
       
       if (error.response?.data?.errors) {
         const newErrors: typeof errors = {};

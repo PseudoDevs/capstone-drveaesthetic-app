@@ -95,13 +95,24 @@ export class NotificationService {
   }
 
   private triggerNotificationResponse(data: NotificationData): void {
-    this.notificationListeners.forEach(listener => {
-      try {
-        listener(data);
-      } catch (error) {
-        console.error('Error in notification listener:', error);
-      }
-    });
+    // Add a small delay to ensure navigation context is ready
+    setTimeout(() => {
+      this.notificationListeners.forEach(listener => {
+        try {
+          listener(data);
+        } catch (error) {
+          console.error('Error in notification listener (will retry in 500ms):', error);
+          // Retry once after a longer delay
+          setTimeout(() => {
+            try {
+              listener(data);
+            } catch (retryError) {
+              console.error('Notification listener failed on retry:', retryError);
+            }
+          }, 500);
+        }
+      });
+    }, 100);
   }
 
   setUnreadCount(count: number): void {

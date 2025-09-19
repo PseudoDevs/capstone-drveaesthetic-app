@@ -44,11 +44,6 @@ export default function IndividualChatScreen() {
       const { AuthService: ImportedAuthService } = await import('~/lib/api');
       ImportedAuthService.setToken(token);
 
-      console.log('=== INDIVIDUAL CHAT AUTH DEBUG ===');
-      console.log('Chat ID:', chatId);
-      console.log('Token available:', !!token);
-      console.log('Token preview:', token ? `${token.substring(0, 20)}...` : 'N/A');
-      console.log('==================================');
 
       setCurrentUser(userData);
 
@@ -65,7 +60,6 @@ export default function IndividualChatScreen() {
       }
 
     } catch (error: any) {
-      console.error('Failed to load chat data:', error);
       if (error.response?.status === 401) {
         await AuthStorage.clearAll();
         router.replace('/login');
@@ -105,13 +99,11 @@ export default function IndividualChatScreen() {
       const newEventSource = ChatService.createMessageStream(token, chatId);
 
       newEventSource.onopen = () => {
-        console.log('✅ SSE connected for chat:', chatId);
       };
 
       newEventSource.onmessage = (event) => {
         try {
           const messageData = JSON.parse(event.data);
-          console.log('💬 New message received via SSE:', messageData);
           
           setMessages(prevMessages => {
             // Avoid duplicate messages
@@ -128,12 +120,10 @@ export default function IndividualChatScreen() {
             scrollViewRef.current?.scrollToEnd({ animated: true });
           }, 100);
         } catch (parseError) {
-          console.error('Failed to parse SSE message:', parseError);
         }
       };
 
       newEventSource.onerror = (error) => {
-        console.error('❌ SSE connection error:', error);
         // Attempt to reconnect after a delay
         setTimeout(() => {
           setupSSE(token, chatId);
@@ -142,7 +132,6 @@ export default function IndividualChatScreen() {
 
       setEventSource(newEventSource);
     } catch (error) {
-      console.error('Failed to setup SSE:', error);
     }
   };
 
@@ -177,7 +166,6 @@ export default function IndividualChatScreen() {
       });
 
     } catch (error: any) {
-      console.error('Failed to send message:', error);
       Alert.alert(
         'Send Failed',
         error.response?.data?.message || error.message || 'Failed to send message. Please try again.'

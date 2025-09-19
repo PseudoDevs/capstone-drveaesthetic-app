@@ -24,13 +24,9 @@ export default function HomeScreen() {
   React.useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('=== HOME LOADING PROCESS ===');
-        console.log('Auth context user:', authUser);
-        console.log('Is authenticated:', isAuthenticated);
 
         // Check authentication first
         if (!isAuthenticated || !authUser) {
-          console.log('❌ Not authenticated, redirecting to login');
           router.replace('/login');
           return;
         }
@@ -38,7 +34,6 @@ export default function HomeScreen() {
         // Ensure user is authenticated and token is set
         const token = await AuthStorage.getToken();
         if (!token) {
-          console.log('❌ No token found, redirecting to login');
           router.replace('/login');
           return;
         }
@@ -53,12 +48,8 @@ export default function HomeScreen() {
         // Load services
         setIsLoadingServices(true);
         const servicesResponse = await ClinicServiceApi.getServices();
-        console.log('=== HOME SERVICES DATA ===');
-        console.log('Services loaded:', servicesResponse);
-        console.log('=========================');
         setServices(servicesResponse.data || []);
       } catch (error: any) {
-        console.error('Failed to load data:', error);
         if (error.response?.status === 401) {
           await AuthStorage.clearAll();
           router.replace('/login');
@@ -78,7 +69,6 @@ export default function HomeScreen() {
 
   const handleServicePress = (service: ClinicService) => {
     // Navigate to service details or booking
-    console.log('Selected service:', service);
   };
 
   const handleViewAllServices = () => {
@@ -101,7 +91,6 @@ export default function HomeScreen() {
         setServices(servicesResponse.data || []);
       }
     } catch (error) {
-      console.error('Failed to refresh services:', error);
     }
   };
 

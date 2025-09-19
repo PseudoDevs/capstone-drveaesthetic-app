@@ -13,67 +13,96 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '~/components/ui/dialog';
-import { Appointment, AppointmentService } from '~/lib/api';
+import { Appointment, AppointmentService, AuthStorage } from '~/lib/api';
 
 interface RescheduleAppointmentModalProps {
   appointment: Appointment;
   trigger: React.ReactNode;
-  onSuccess?: () => void;
+  onSuccess?: () => void | Promise<void>;
 }
 
-export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: RescheduleAppointmentModalProps) {
+interface TimeSlot {
+  display: string;
+  value: string;
+}
+
+interface FormErrors {
+  date?: string;
+  timeSlot?: string;
+  general?: string;
+}
+
+export function RescheduleAppointmentModal({
+  appointment,
+  trigger,
+  onSuccess
+}: RescheduleAppointmentModalProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date(appointment.appointment_date));
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = React.useState(appointment.appointment_time);
   const [availableTimeSlots, setAvailableTimeSlots] = React.useState<string[]>([]);
-  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
+  const [errors, setErrors] = React.useState<FormErrors>({});
 
   // Generate time slots from 8 AM to 5 PM
-  const generateTimeSlots = () => {
-    const slots = [];
+  const generateTimeSlots = React.useCallback((): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
     for (let hour = 8; hour <= 17; hour++) {
-      const time12 = hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? `12:00 PM` : `${hour}:00 AM`;
+      const time12 = hour > 12
+        ? `${hour - 12}:00 PM`
+        : hour === 12
+          ? `12:00 PM`
+          : `${hour}:00 AM`;
       const time24 = `${hour.toString().padStart(2, '0')}:00`;
       slots.push({ display: time12, value: time24 });
     }
     return slots;
-  };
+  }, []);
 
-  const timeSlots = generateTimeSlots();
+  const timeSlots = React.useMemo(() => generateTimeSlots(), [generateTimeSlots]);
 
   // Filter available time slots based on date and current time
   React.useEffect(() => {
     const today = new Date();
     const isToday = selectedDate.toDateString() === today.toDateString();
-    
+
     const available = timeSlots.filter(slot => {
       if (isToday) {
         const currentHour = today.getHours();
         const slotHour = parseInt(slot.value.split(':')[0]);
-        return slotHour > currentHour;
+        // Add buffer - must be at least 1 hour in the future
+        return slotHour > currentHour + 1;
       }
       return true;
     });
-    
+
     setAvailableTimeSlots(available.map(slot => slot.value));
-  }, [selectedDate]);
 
-  const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
+    // Reset selected time if it's no longer available
+    if (!available.some(slot => slot.value === selectedTimeSlot)) {
+      setSelectedTimeSlot('');
+    }
+  }, [selectedDate, timeSlots, selectedTimeSlot]);
 
+  const validateForm = React.useCallback((): boolean => {
+    const newErrors: FormErrors = {};
+
+    // Validate date
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selectedDateOnly = new Date(selectedDate);
     selectedDateOnly.setHours(0, 0, 0, 0);
-    
+
     if (selectedDateOnly < today) {
-      newErrors.date = 'Please select a future date';
+      newErrors.date = 'Please select today or a future date';
     }
 
+    // Validate time slot
     if (!selectedTimeSlot) {
       newErrors.timeSlot = 'Please select a time slot';
+    } else if (!availableTimeSlots.includes(selectedTimeSlot)) {
+      newErrors.timeSlot = 'Please select an available time slot';
     }
 
     // Check if the new date/time is different from current
@@ -85,7 +114,7 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [selectedDate, selectedTimeSlot, availableTimeSlots, appointment.appointment_date, appointment.appointment_time]);
 
   const handleReschedule = async () => {
     if (!validateForm()) {
@@ -94,45 +123,112 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
 
     setIsLoading(true);
     try {
+      // Ensure we have authentication token
+      const token = await AuthStorage.getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
       const updateData = {
         appointment_date: selectedDate.toISOString().split('T')[0],
         appointment_time: selectedTimeSlot,
         status: 'pending', // Reset status to pending when rescheduled
       };
 
-      console.log('=== RESCHEDULING APPOINTMENT ===');
-      console.log('Appointment ID:', appointment.id);
-      console.log('Update data:', JSON.stringify(updateData, null, 2));
-      console.log('================================');
+      console.log('Rescheduling appointment:', {
+        id: appointment.id,
+        updateData,
+      });
 
       await AppointmentService.updateAppointment(appointment.id.toString(), updateData);
-      
+
       Alert.alert(
         'Success!',
-        'Your appointment has been rescheduled successfully.',
+        'Your appointment has been rescheduled successfully. The new appointment is pending confirmation.',
         [
           {
             text: 'OK',
-            onPress: () => {
+            onPress: async () => {
               setIsOpen(false);
-              onSuccess?.();
-              // Reset form
-              setSelectedDate(new Date(appointment.appointment_date));
-              setSelectedTimeSlot(appointment.appointment_time);
-              setErrors({});
+              await onSuccess?.();
+              resetForm();
             },
           },
         ]
       );
     } catch (error: any) {
       console.error('Failed to reschedule appointment:', error);
-      Alert.alert(
-        'Reschedule Failed',
-        error.response?.data?.message || error.message || 'Failed to reschedule appointment. Please try again.'
-      );
+
+      let errorMessage = 'Failed to reschedule appointment. Please try again.';
+
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication expired. Please log in again.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'You do not have permission to reschedule this appointment.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Appointment not found. It may have already been cancelled.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert('Reschedule Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resetForm = React.useCallback(() => {
+    setSelectedDate(new Date(appointment.appointment_date));
+    setSelectedTimeSlot(appointment.appointment_time);
+    setErrors({});
+  }, [appointment.appointment_date, appointment.appointment_time]);
+
+  const handleDateChange = React.useCallback((event: any, date?: Date) => {
+    setShowDatePicker(false);
+    if (event.type === 'set' && date) {
+      setSelectedDate(date);
+      setSelectedTimeSlot(''); // Reset time slot when date changes
+      // Clear date error if it exists
+      if (errors.date) {
+        setErrors(prev => ({ ...prev, date: undefined }));
+      }
+    }
+  }, [errors.date]);
+
+  const handleTimeSlotSelect = React.useCallback((timeValue: string) => {
+    setSelectedTimeSlot(timeValue);
+    // Clear time slot error if it exists
+    if (errors.timeSlot) {
+      setErrors(prev => ({ ...prev, timeSlot: undefined }));
+    }
+    // Clear general error if it exists
+    if (errors.general) {
+      setErrors(prev => ({ ...prev, general: undefined }));
+    }
+  }, [errors.timeSlot, errors.general]);
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatCurrentDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getStatusVariant = (status: string): "default" | "outline" => {
+    return status === 'confirmed' ? 'default' : 'outline';
   };
 
   return (
@@ -144,7 +240,7 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
         <DialogHeader>
           <DialogTitle>Reschedule Appointment</DialogTitle>
         </DialogHeader>
-        
+
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="space-y-6 p-1">
             {/* Current Appointment Details */}
@@ -162,12 +258,7 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
                 <View className="flex-row justify-between">
                   <Text className="text-muted-foreground">Current Date:</Text>
                   <Text className="font-semibold">
-                    {new Date(appointment.appointment_date).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                    {formatCurrentDate(appointment.appointment_date)}
                   </Text>
                 </View>
                 <View className="flex-row justify-between">
@@ -176,7 +267,7 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
                 </View>
                 <View className="flex-row justify-between items-center">
                   <Text className="text-muted-foreground">Status:</Text>
-                  <Badge variant={appointment.status === 'confirmed' ? 'default' : 'outline'}>
+                  <Badge variant={getStatusVariant(appointment.status)}>
                     <Text className="text-xs capitalize">{appointment.status}</Text>
                   </Badge>
                 </View>
@@ -199,14 +290,10 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
                 variant="outline"
                 onPress={() => setShowDatePicker(true)}
                 className={`justify-start ${errors.date ? "border-destructive" : ""}`}
+                disabled={isLoading}
               >
                 <Text className="text-foreground">
-                  {selectedDate.toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
+                  📅 {formatDate(selectedDate)}
                 </Text>
               </Button>
               {errors.date && (
@@ -217,27 +304,35 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
             {/* New Time Slot Selection */}
             <View className="space-y-3">
               <Label>New Time Slot *</Label>
-              <View className="flex-row flex-wrap gap-2">
-                {timeSlots.map((slot) => {
-                  const isAvailable = availableTimeSlots.includes(slot.value);
-                  const isSelected = selectedTimeSlot === slot.value;
-                  
-                  return (
-                    <Button
-                      key={slot.value}
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      disabled={!isAvailable}
-                      onPress={() => setSelectedTimeSlot(slot.value)}
-                      className={`${!isAvailable ? 'opacity-50' : ''}`}
-                    >
-                      <Text className={isSelected ? "text-primary-foreground" : "text-foreground"}>
-                        {slot.display}
-                      </Text>
-                    </Button>
-                  );
-                })}
-              </View>
+              {availableTimeSlots.length > 0 ? (
+                <View className="flex-row flex-wrap gap-2">
+                  {timeSlots.map((slot) => {
+                    const isAvailable = availableTimeSlots.includes(slot.value);
+                    const isSelected = selectedTimeSlot === slot.value;
+
+                    return (
+                      <Button
+                        key={slot.value}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        disabled={!isAvailable || isLoading}
+                        onPress={() => handleTimeSlotSelect(slot.value)}
+                        className={`${!isAvailable ? 'opacity-50' : ''}`}
+                      >
+                        <Text className={isSelected ? "text-primary-foreground" : "text-foreground"}>
+                          {slot.display}
+                        </Text>
+                      </Button>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View className="bg-muted/50 border border-border rounded-md p-4">
+                  <Text className="text-muted-foreground text-center text-sm">
+                    No available time slots for this date. Please select another date.
+                  </Text>
+                </View>
+              )}
               {errors.timeSlot && (
                 <Text className="text-destructive text-sm">{errors.timeSlot}</Text>
               )}
@@ -247,7 +342,10 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
             <View className="flex-row space-x-3">
               <Button
                 variant="outline"
-                onPress={() => setIsOpen(false)}
+                onPress={() => {
+                  setIsOpen(false);
+                  resetForm();
+                }}
                 disabled={isLoading}
                 className="flex-1"
               >
@@ -255,7 +353,7 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
               </Button>
               <Button
                 onPress={handleReschedule}
-                disabled={isLoading}
+                disabled={isLoading || availableTimeSlots.length === 0}
                 className="flex-1"
               >
                 <Text>
@@ -273,13 +371,8 @@ export function RescheduleAppointmentModal({ appointment, trigger, onSuccess }: 
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             minimumDate={new Date()}
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if (event.type === 'set' && date) {
-                setSelectedDate(date);
-                setSelectedTimeSlot(''); // Reset time slot when date changes
-              }
-            }}
+            maximumDate={new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)} // 90 days from now
+            onChange={handleDateChange}
           />
         )}
       </DialogContent>

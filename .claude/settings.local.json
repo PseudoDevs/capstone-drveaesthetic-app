@@ -24,7 +24,13 @@
       "Bash(findstr:*)",
       "Bash(wmic process where ProcessId=15488 delete:*)",
       "Bash(wmic process where ProcessId=22812 delete:*)",
-      "Bash(timeout 5s npm run dev)"
+      "Bash(timeout 5s npm run dev)",
+      "Bash(wmic process where ProcessId=32324 delete:*)",
+      "Bash(wmic process where ProcessId=24152 delete:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:chatgpt.com)",
+      "Bash(wmic process where ProcessId=30268 delete:*)",
+      "Bash(wmic process where ProcessId=26160 delete:*)"
     ],
     "deny": [],
     "ask": []

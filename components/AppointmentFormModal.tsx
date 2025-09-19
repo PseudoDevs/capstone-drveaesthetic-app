@@ -29,7 +29,6 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
   const selectedService = service || preselectedService;
 
   if (!selectedService) {
-    console.warn('AppointmentFormModal: No service or preselectedService provided');
     return null;
   }
   const [isOpen, setIsOpen] = React.useState(false);
@@ -144,9 +143,6 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
         notes: notes,
       };
 
-      console.log('=== BOOKING APPOINTMENT ===');
-      console.log('Appointment data:', JSON.stringify(appointmentData, null, 2));
-      console.log('==========================');
 
       await AppointmentService.createAppointment(appointmentData);
       
@@ -185,7 +181,6 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
         ]
       );
     } catch (error: any) {
-      console.error('Failed to book appointment:', error);
       Alert.alert(
         'Booking Failed',
         error.response?.data?.message || error.message || 'Failed to book appointment. Please try again.'

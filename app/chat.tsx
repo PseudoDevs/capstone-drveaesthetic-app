@@ -46,13 +46,8 @@ export default function ChatScreen() {
       const { AuthService: ImportedAuthService } = await import('~/lib/api');
       ImportedAuthService.setToken(token);
 
-      console.log('=== SINGLE CHAT AUTH DEBUG ===');
-      console.log('Token available:', !!token);
-      console.log('User data:', !!userData);
-      console.log('==============================');
 
       // Try to get existing conversations first
-      console.log('Loading conversations...');
       const conversations = await ChatService.getConversations(1, 1);
       
       let messagesList = [];
@@ -62,7 +57,6 @@ export default function ChatScreen() {
         const conversation = conversations[0];
         if (conversation && conversation.id) {
           const chatId = conversation.id.toString();
-          console.log('Found existing conversation, loading messages for chat:', chatId);
           setCurrentChatId(chatId);
           
           // Get staff ID from conversation
@@ -74,13 +68,11 @@ export default function ChatScreen() {
             const messagesResult = await ChatService.getConversationMessages(chatId);
             messagesList = messagesResult?.messages || [];
           } catch (msgError) {
-            console.warn('Failed to load messages:', msgError);
             messagesList = [];
           }
         }
       } else {
         // If no conversation exists, automatically get the single staff account
-        console.log('No existing conversation found, getting staff info...');
         try {
           const staffResponse = await ChatService.searchUsers();
           const staffList = staffResponse?.data || staffResponse || [];
@@ -89,16 +81,13 @@ export default function ChatScreen() {
             const staff = staffList[0];
             if (staff && staff.id) {
               setStaffId(staff.id);
-              console.log('Auto-selected staff ID:', staff.id, 'Name:', staff.name || 'Unknown');
             }
           } else {
             // Fallback: Use the default staff ID
             const defaultStaffId = ChatService.getDefaultStaffId();
-            console.log('No staff found in search, using default staff ID:', defaultStaffId);
             setStaffId(defaultStaffId);
           }
         } catch (staffError) {
-          console.warn('Could not get staff info, using default staff ID:', staffError);
           const defaultStaffId = ChatService.getDefaultStaffId();
           setStaffId(defaultStaffId);
         }
@@ -128,7 +117,6 @@ export default function ChatScreen() {
       }
 
     } catch (error: any) {
-      console.error('Failed to load messages:', error);
       
       if (error.response?.status === 401) {
         await AuthStorage.clearAll();
@@ -148,7 +136,6 @@ export default function ChatScreen() {
     }
     
     setIsPolling(true);
-    console.log('✅ Started message polling for real-time updates');
     
     // Poll every 2 seconds for new messages
     pollingInterval.current = setInterval(async () => {
@@ -191,7 +178,6 @@ export default function ChatScreen() {
             );
             
             if (freshMessages.length > 0) {
-              console.log(`💬 Found ${freshMessages.length} new message(s) via polling`);
               
               // Check for intro messages
               freshMessages.forEach(msg => {
@@ -203,7 +189,6 @@ export default function ChatScreen() {
                                        msg.message.toLowerCase().includes('good evening');
                   
                   if (isIntroMessage) {
-                    console.log('👋 Received automatic intro message from staff!');
                   }
                 }
               });
@@ -233,7 +218,6 @@ export default function ChatScreen() {
         }
         
       } catch (error) {
-        console.warn('Polling error (will retry):', error);
       }
     }, 2000); // Poll every 2 seconds
   };
@@ -244,7 +228,6 @@ export default function ChatScreen() {
       pollingInterval.current = null;
     }
     setIsPolling(false);
-    console.log('❌ Stopped message polling');
   };
 
   const handleSendMessage = async () => {
@@ -266,7 +249,6 @@ export default function ChatScreen() {
       } else {
         // Fallback: Use default staff ID if not available
         const defaultStaffId = ChatService.getDefaultStaffId();
-        console.log('No staff ID available, using default staff ID:', defaultStaffId);
         messageData.receiver_id = defaultStaffId;
         setStaffId(defaultStaffId);
       }
@@ -276,11 +258,9 @@ export default function ChatScreen() {
         messageData.chat_id = parseInt(currentChatId);
       }
       
-      console.log('Sending message with data:', messageData);
 
       const response = await ChatService.sendMessage(messageData);
       
-      console.log('Message sent successfully:', response);
       
       // Extract message and chat_id from response
       const sentMessage = response.message;
@@ -290,7 +270,6 @@ export default function ChatScreen() {
       const isNewConversation = !currentChatId;
       if (chatId && !currentChatId) {
         setCurrentChatId(chatId.toString());
-        console.log('🎆 New conversation created! Chat ID:', chatId);
         
         // Start/restart polling for the new conversation
         if (!isPolling) {
@@ -314,7 +293,6 @@ export default function ChatScreen() {
       
       // For new conversations, expect an automatic intro message from staff
       if (isNewConversation) {
-        console.log('🔔 Expecting automatic intro message from staff...');
         // Increase polling frequency briefly to catch intro message faster
         setTimeout(() => {
           if (pollingInterval.current) {
@@ -347,7 +325,6 @@ export default function ChatScreen() {
                     );
                     
                     if (freshMessages && freshMessages.length > 0) {
-                      console.log(`⚡ Fast poll found ${freshMessages.length} new message(s)`);
                       const allMessages = [...prevMessages, ...freshMessages].sort((a, b) => {
                         const dateA = a?.created_at ? new Date(a.created_at).getTime() : 0;
                         const dateB = b?.created_at ? new Date(b.created_at).getTime() : 0;
@@ -364,7 +341,6 @@ export default function ChatScreen() {
                   });
                 }
               } catch (error) {
-                console.warn('Fast polling error:', error);
               }
             }, 1000); // Poll every 1 second for intro message
           }
@@ -377,7 +353,6 @@ export default function ChatScreen() {
       }, 100);
 
     } catch (error: any) {
-      console.error('Failed to send message:', error);
       Alert.alert(
         'Send Failed',
         error.response?.data?.message || 'Failed to send message. Please try again.'
@@ -393,15 +368,12 @@ export default function ChatScreen() {
     
     // Set up app state change listener
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      console.log('App state changed:', appState.current, '->', nextAppState);
       
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         // App came to foreground, resume polling
-        console.log('📱 App resumed, starting polling');
         startMessagePolling();
       } else if (nextAppState.match(/inactive|background/)) {
         // App went to background, stop polling to save battery
-        console.log('🚫 App went to background, stopping polling');
         stopMessagePolling();
       }
       
