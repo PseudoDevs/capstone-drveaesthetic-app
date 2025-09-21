@@ -294,50 +294,42 @@ export class AuthService {
     const email = user.email?.toLowerCase() || '';
     const name = user.name?.toLowerCase() || '';
 
-    // Check for common placeholder patterns
-    const placeholderPatterns = [
+    // Only check for very obvious placeholder patterns to avoid false positives
+    const strictPlaceholderPatterns = [
       'example.com',
-      'test@',
-      'dummy@',
-      'placeholder@',
-      'fake@',
-      'sample@',
-      '@example',
-      '@test',
-      '@dummy'
+      'test@example',
+      'dummy@example',
+      'placeholder@example',
+      'fake@example',
+      'sample@example'
     ];
 
-    const namePlaceholderPatterns = [
-      'test',
-      'example',
-      'dummy',
-      'placeholder',
-      'fake',
-      'sample',
-      'user',
-      'demo',
+    // Very strict name patterns - only exact matches
+    const strictNamePlaceholderPatterns = [
+      'test user',
+      'example user',
+      'dummy user',
+      'placeholder user',
       'john doe',
       'jane doe'
     ];
 
-    // Check email patterns
-    for (const pattern of placeholderPatterns) {
+    // Check email patterns - only exact placeholder domains
+    for (const pattern of strictPlaceholderPatterns) {
       if (email.includes(pattern)) {
         return true;
       }
     }
 
-    // Check name patterns
-    for (const pattern of namePlaceholderPatterns) {
-      if (name.includes(pattern)) {
+    // Check name patterns - only exact matches to avoid false positives
+    for (const pattern of strictNamePlaceholderPatterns) {
+      if (name === pattern) {
         return true;
       }
     }
 
-    // Check for generic IDs (usually placeholder data has low IDs like 1, 2, 3)
-    if (user.id && user.id <= 10) {
-      return true;
-    }
+    // Remove the generic ID check as it's too aggressive
+    // Real users can have low IDs if they're early users
 
     return false;
   }

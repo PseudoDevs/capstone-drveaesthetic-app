@@ -120,13 +120,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const updateUser = async (userData: User) => {
     try {
-      // Check for placeholder data (just log, don't block updates)
-      const isPlaceholderData = AuthService.isPlaceholderData(userData);
-
-      if (isPlaceholderData) {
-        // Continue with update - don't block
-      }
-
+      // Remove placeholder data check during updates to prevent session loss
+      // Profile updates should always proceed to maintain user session
       setUser(userData);
       await AuthStorage.saveUser(userData);
     } catch (error) {

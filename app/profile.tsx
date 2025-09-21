@@ -157,6 +157,7 @@ export default function ProfileScreen() {
       try {
         await updateUser(userDataToSave);
       } catch (updateError) {
+        // Fallback to direct storage if auth context update fails
         await AuthStorage.saveUser(userDataToSave);
       }
 
