@@ -76,7 +76,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         AuthService.setToken(token);
-        const currentUser = await AuthService.getCurrentUser();
+
+        // Use the stored user ID to fetch updated data from the correct endpoint
+        let currentUser = null;
+
+        try {
+          const cachedUser = await AuthStorage.getUser();
+          const userId = (cachedUser as any)?.data?.id || cachedUser?.id;
+
+          if (userId) {
+            console.log('Refreshing user data using user ID:', userId);
+            const { ProfileService } = await import('~/lib/api');
+            currentUser = await ProfileService.getProfile(userId);
+            console.log('Successfully fetched user data from /client/users/{id}:', currentUser);
+          } else {
+            console.log('No user ID found in cached user, falling back to auth endpoint');
+            // Fallback to auth endpoint if no user ID
+            currentUser = await AuthService.getCurrentUser();
+          }
+        } catch (error) {
+          console.log('Profile endpoint failed, trying auth endpoint as fallback:', error);
+          // Fallback to auth endpoint if profile endpoint fails
+          try {
+            currentUser = await AuthService.getCurrentUser();
+          } catch (authError) {
+            console.log('Auth endpoint also failed:', authError);
+          }
+        }
 
         if (currentUser) {
           // Check if API is returning placeholder data
@@ -99,6 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         } else {
           // Don't clear user data if API doesn't return user data
+          console.log('Both auth and profile endpoints failed, keeping cached user');
         }
       }
     } catch (error) {
@@ -191,15 +218,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // STEP 4: Background refresh of user data (optional, non-blocking)
           setTimeout(async () => {
             try {
-              const freshUser = await AuthService.getCurrentUser();
+              const userId = (cachedUser as any)?.data?.id || cachedUser?.id;
+              let freshUser = null;
+
+              if (userId) {
+                console.log('Background refresh using user ID:', userId);
+                const { ProfileService } = await import('~/lib/api');
+                freshUser = await ProfileService.getProfile(userId);
+              } else {
+                // Fallback to auth endpoint
+                freshUser = await AuthService.getCurrentUser();
+              }
+
               if (freshUser && !AuthService.isPlaceholderData(freshUser)) {
                 setUser(freshUser);
                 await AuthStorage.saveUser(freshUser);
+                console.log('Background refresh successful with updated data');
               } else {
                 // Keep cached user
+                console.log('Background refresh returned placeholder data, keeping cached user');
               }
             } catch (refreshError) {
               // Keep cached user
+              console.log('Background refresh failed, keeping cached user:', refreshError);
             }
           }, 1000); // 1 second delay for background refresh
 

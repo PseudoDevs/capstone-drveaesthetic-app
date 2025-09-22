@@ -176,15 +176,17 @@ export default function ProfileScreen() {
       // Update the auth context directly to keep it in sync
       try {
         await updateUser(userDataToSave);
+        console.log('Updated auth context with new user data:', userDataToSave);
       } catch (updateError) {
         // Fallback to direct storage if auth context update fails
         await AuthStorage.saveUser(userDataToSave);
+        console.log('Fallback: Saved user data to storage:', userDataToSave);
       }
 
       setIsEditDialogOpen(false);
       Alert.alert('Success', 'Profile updated successfully!');
 
-      // Trigger real-time refresh to get latest data
+      // Trigger real-time refresh to get latest data from server
       setTimeout(() => {
         refreshProfileData();
       }, 500);
