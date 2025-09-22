@@ -281,8 +281,17 @@ export class AuthService {
   static async getCurrentUser(): Promise<User | null> {
     try {
       const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.PROFILE);
+      console.log('getCurrentUser API response:', response);
+
+      // Check if the API is returning placeholder data
+      if (response && this.isPlaceholderData(response)) {
+        console.log('API returned placeholder data, ignoring');
+        return null; // Don't return placeholder data
+      }
+
       return response;
     } catch (error) {
+      console.log('getCurrentUser API error:', error);
       return null;
     }
   }

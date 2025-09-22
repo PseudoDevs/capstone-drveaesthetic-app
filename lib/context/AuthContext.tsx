@@ -79,10 +79,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await AuthService.getCurrentUser();
 
         if (currentUser) {
-          // Update user data from API (placeholder detection removed)
-          setUser(currentUser);
-          // Update stored user data to keep it fresh
-          await AuthStorage.saveUser(currentUser);
+          // Check if API is returning placeholder data
+          const isPlaceholder = AuthService.isPlaceholderData(currentUser);
+          console.log('Refresh user data:', { currentUser, isPlaceholder });
+
+          if (isPlaceholder) {
+            // Don't update with placeholder data, keep existing user data
+            console.log('API returned placeholder data, keeping cached user');
+            const cachedUser = await AuthStorage.getUser();
+            if (cachedUser && !AuthService.isPlaceholderData(cachedUser)) {
+              // Keep the real cached user data
+              return;
+            }
+          } else {
+            // Update user data from API only if it's real data
+            setUser(currentUser);
+            // Update stored user data to keep it fresh
+            await AuthStorage.saveUser(currentUser);
+          }
         } else {
           // Don't clear user data if API doesn't return user data
         }

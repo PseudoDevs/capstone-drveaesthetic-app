@@ -60,10 +60,21 @@ export default function ProfileScreen() {
     refresh: refreshProfileData
   } = useRealTimeRefresh({
     onRefresh: async () => {
-      // Refresh user data from API without navigation
-      await refreshUser();
-      // The auth context will update and trigger useEffect to update local state
-      // No navigation needed - just data refresh
+      // Store current user data before refresh
+      const currentUserData = user;
+
+      try {
+        // Refresh user data from API without navigation
+        await refreshUser();
+        // The auth context will update and trigger useEffect to update local state
+        // No navigation needed - just data refresh
+      } catch (error) {
+        console.log('Profile refresh failed, keeping current user data:', error);
+        // If refresh fails, keep the current user data
+        if (currentUserData) {
+          setUser(currentUserData);
+        }
+      }
     }
   });
 
@@ -81,7 +92,16 @@ export default function ProfileScreen() {
   // Sync local user state with AuthContext when it updates
   React.useEffect(() => {
     if (authUser && isAuthenticated) {
-      setUser(authUser);
+      // Only update if the new user data is not placeholder data
+      const { AuthService } = require('~/lib/api');
+      const isPlaceholder = AuthService.isPlaceholderData(authUser);
+
+      if (!isPlaceholder) {
+        setUser(authUser);
+      } else {
+        console.log('AuthContext provided placeholder data, keeping current user');
+        // Keep current user data if the new data is placeholder
+      }
     }
   }, [authUser]);
 
