@@ -243,7 +243,7 @@ export default function LoginScreen() {
               </View>
 
               {/* Google Sign In Button */}
-              <Button
+              {/* <Button
                 onPress={handleGoogleLogin}
                 disabled={isLoading || isGoogleLoading}
                 variant="outline"
@@ -252,7 +252,7 @@ export default function LoginScreen() {
                 <Text>
                   {isGoogleLoading ? 'Signing in with Google...' : 'Continue with Google'}
                 </Text>
-              </Button>
+              </Button> */}
 
               {/* Sign Up Link */}
               <View className="pt-4">
