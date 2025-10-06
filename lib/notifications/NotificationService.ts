@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 export interface NotificationData {
   type?: string;
@@ -9,10 +10,20 @@ export interface NotificationData {
   [key: string]: any;
 }
 
+// Configure how notifications should be handled when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
 export class NotificationService {
   private static instance: NotificationService;
   private unreadCount: number = 0;
   private notificationListeners: ((data: NotificationData) => void)[] = [];
+  private pushToken: string | null = null;
 
   static getInstance(): NotificationService {
     if (!NotificationService.instance) {
@@ -31,7 +42,26 @@ export class NotificationService {
         sender: senderName,
       };
 
-      // Show alert-based notification
+      // Schedule a local push notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `💬 ${senderName}`,
+          body: message,
+          data: notificationData,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null, // Show immediately
+      });
+
+      console.log('🔔 Chat notification scheduled:', {
+        sender: senderName,
+        message,
+        conversationId
+      });
+    } catch (error) {
+      console.error('Error showing chat notification:', error);
+      // Fallback to Alert if push notification fails
       Alert.alert(
         `💬 New Message from ${senderName}`,
         message,
@@ -40,19 +70,17 @@ export class NotificationService {
           {
             text: 'Open Chat',
             onPress: () => {
-              this.triggerNotificationResponse(notificationData);
+              this.triggerNotificationResponse({
+                type: 'chat',
+                message_type: 'chat',
+                conversation_id: conversationId,
+                chat_id: conversationId,
+                sender: senderName,
+              });
             }
           }
         ]
       );
-
-      console.log('🔔 Chat notification shown:', {
-        sender: senderName,
-        message,
-        conversationId
-      });
-    } catch (error) {
-      console.error('Error showing chat notification:', error);
     }
   }
 
@@ -63,6 +91,22 @@ export class NotificationService {
         timestamp: Date.now()
       };
 
+      // Schedule a local push notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: notificationData,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null, // Show immediately
+      });
+
+      console.log('🔔 Notification scheduled:', { title, body, data: notificationData });
+    } catch (error) {
+      console.error('Error showing notification:', error);
+      // Fallback to Alert if push notification fails
       Alert.alert(
         title,
         body,
@@ -76,10 +120,6 @@ export class NotificationService {
           }
         ]
       );
-
-      console.log('🔔 Notification shown:', { title, body, data: notificationData });
-    } catch (error) {
-      console.error('Error showing notification:', error);
     }
   }
 
@@ -135,6 +175,74 @@ export class NotificationService {
       'This is a test notification from Dr. Ve Aesthetic App!',
       { type: 'test' }
     );
+  }
+
+  // Request notification permissions and get push token
+  async requestPermissionsAndGetToken(): Promise<string | null> {
+    try {
+      // Check and request permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        console.warn('⚠️ Notification permission not granted');
+        return null;
+      }
+
+      // Get push token (for Expo Push Notifications)
+      // If you want to use Firebase/APNs directly, you'll need different configuration
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '0ef114e3-7926-46d0-8936-d0b84c90612f',
+      });
+
+      this.pushToken = tokenData.data;
+      console.log('📱 Push notification token:', this.pushToken);
+
+      // Set notification channel for Android
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('chat-messages', {
+          name: 'Chat Messages',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'default',
+        });
+
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Default Notifications',
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: 'default',
+        });
+      }
+
+      return this.pushToken;
+    } catch (error) {
+      console.error('Error requesting notification permissions:', error);
+      return null;
+    }
+  }
+
+  getPushToken(): string | null {
+    return this.pushToken;
+  }
+
+  // Setup notification received listener
+  setupNotificationReceivedListener(
+    onReceived: (notification: Notifications.Notification) => void
+  ): Notifications.Subscription {
+    return Notifications.addNotificationReceivedListener(onReceived);
+  }
+
+  // Setup notification response (tap) listener
+  setupNotificationResponseReceivedListener(
+    onResponse: (response: Notifications.NotificationResponse) => void
+  ): Notifications.Subscription {
+    return Notifications.addNotificationResponseReceivedListener(onResponse);
   }
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { NotificationService } from '~/lib/notifications/NotificationService';
 import { AuthService } from '~/lib/api/auth';
 import ChatPollingServiceInstance from '~/lib/services/ChatPollingService';
@@ -16,6 +17,8 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
   const notificationService = NotificationService.getInstance();
   const chatPollingService = ChatPollingServiceInstance;
   const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const notificationListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription>();
 
   // Check if navigation context is ready
   useEffect(() => {
@@ -81,9 +84,44 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
 
     const setupNotifications = async () => {
       try {
-        // Setup notification response listener (when user taps notification)
-        notificationResponseUnsubscribe = notificationService.setupNotificationResponseListener((data) => {
+        // Request notification permissions and get push token
+        const pushToken = await notificationService.requestPermissionsAndGetToken();
 
+        if (pushToken) {
+          console.log('📱 Push token obtained:', pushToken);
+          // TODO: Send this token to your backend to enable server-side push notifications
+          // await AuthService.registerPushToken(pushToken);
+        }
+
+        // Setup notification received listener (when notification arrives while app is open)
+        notificationListener.current = notificationService.setupNotificationReceivedListener((notification) => {
+          console.log('📨 Notification received:', notification);
+          // Optionally update UI or unread count here
+        });
+
+        // Setup notification response listener (when user taps notification)
+        responseListener.current = notificationService.setupNotificationResponseReceivedListener((response) => {
+          console.log('📱 Notification tapped:', response);
+          const data = response.notification.request.content.data;
+
+          // Navigate based on notification type
+          if (data?.type === 'chat' || data?.message_type === 'chat') {
+            const conversationId = data?.conversation_id || data?.chat_id;
+            if (conversationId) {
+              safeNavigate(`/chat/${conversationId}`);
+            } else {
+              safeNavigate('/chat');
+            }
+          } else if (data?.type === 'appointment') {
+            safeNavigate('/appointments');
+          } else {
+            // Default navigation for unknown types
+            safeNavigate('/home');
+          }
+        });
+
+        // Keep legacy listener for backward compatibility
+        notificationResponseUnsubscribe = notificationService.setupNotificationResponseListener((data) => {
           // Navigate based on notification type
           if (data?.type === 'chat' || data?.message_type === 'chat') {
             const conversationId = data?.conversation_id || data?.chat_id;
@@ -145,6 +183,8 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
     return () => {
       notificationResponseUnsubscribe?.();
       appStateSubscription?.remove();
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
 
       // Stop chat polling when component unmounts
       chatPollingService.stopPolling();
