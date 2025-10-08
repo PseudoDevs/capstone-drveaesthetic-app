@@ -84,6 +84,53 @@ export class NotificationService {
     }
   }
 
+  async showAppointmentNotification(title: string, message: string, appointmentData: NotificationData): Promise<void> {
+    try {
+      const notificationData: NotificationData = {
+        ...appointmentData,
+        type: 'appointment',
+        timestamp: Date.now()
+      };
+
+      // Schedule a local push notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body: message,
+          data: notificationData,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null, // Show immediately
+      });
+
+      console.log('🔔 Appointment notification scheduled:', {
+        title,
+        message,
+        data: notificationData
+      });
+    } catch (error) {
+      console.error('Error showing appointment notification:', error);
+      // Fallback to Alert if push notification fails
+      Alert.alert(
+        title,
+        message,
+        [
+          { text: 'Close', style: 'cancel' },
+          {
+            text: 'View Appointments',
+            onPress: () => {
+              this.triggerNotificationResponse({
+                type: 'appointment',
+                ...appointmentData
+              });
+            }
+          }
+        ]
+      );
+    }
+  }
+
   async showNotification(title: string, body: string, data: NotificationData = {}): Promise<void> {
     try {
       const notificationData: NotificationData = {
