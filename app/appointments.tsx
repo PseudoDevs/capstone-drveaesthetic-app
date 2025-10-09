@@ -14,7 +14,7 @@ import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { Separator } from '~/components/ui/separator';
 import { BottomNavigation } from '~/components/BottomNavigation';
-import { SimpleRatingModal } from '~/components/SimpleRatingModal';
+import { FeedbackDialog } from '~/components/FeedbackDialog';
 import { AppointmentService, Appointment, FeedbackService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
 
@@ -139,28 +139,36 @@ export default function AppointmentsScreen() {
     setRatingModal({ visible: true, appointment });
   }, []);
 
-  // Handle rating submission
-  const handleRatingSubmit = useCallback(async (rating: number) => {
+  // Handle feedback submission
+  const handleFeedbackSubmit = useCallback(async (rating: number, comment: string) => {
     if (!ratingModal.appointment) return;
+
+    const userId = getUserId();
+    if (!userId) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
 
     try {
       setProcessing(prev => ({ ...prev, [ratingModal.appointment!.id]: true }));
 
       await FeedbackService.createFeedback({
+        client_id: userId,
         appointment_id: ratingModal.appointment.id,
         rating,
-        comment: `Rating for ${ratingModal.appointment.service?.service_name}`
+        comment: comment || null
       });
 
       setRatingModal({ visible: false, appointment: null });
       Alert.alert('Success', 'Thank you for your feedback!');
     } catch (err: any) {
-      console.error('Rating error:', err);
-      Alert.alert('Error', 'Failed to submit rating');
+      console.error('Feedback error:', err);
+      const errorMessage = err?.response?.data?.message || err?.message || 'Failed to submit feedback';
+      Alert.alert('Error', errorMessage);
     } finally {
       setProcessing(prev => ({ ...prev, [ratingModal.appointment!.id]: false }));
     }
-  }, [ratingModal.appointment]);
+  }, [ratingModal.appointment, getUserId]);
 
   // Close rating modal
   const closeRatingModal = useCallback(() => {
@@ -398,7 +406,7 @@ export default function AppointmentsScreen() {
                             onPress={() => rateService(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>{processing[appointment.id] ? '⏳' : '⭐'} Rate</Text>
+                            <Text>{processing[appointment.id] ? '⏳' : '⭐'} Feedback</Text>
                           </Button>
                           <Button
                             size="sm"
@@ -428,12 +436,12 @@ export default function AppointmentsScreen() {
 
       <BottomNavigation />
 
-      {/* Rating Modal */}
-      <SimpleRatingModal
+      {/* Feedback Modal */}
+      <FeedbackDialog
         visible={ratingModal.visible}
         serviceName={ratingModal.appointment?.service?.service_name || 'Service'}
         onClose={closeRatingModal}
-        onSubmit={handleRatingSubmit}
+        onSubmit={handleFeedbackSubmit}
         loading={ratingModal.appointment ? processing[ratingModal.appointment.id] : false}
       />
     </View>

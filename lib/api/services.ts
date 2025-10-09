@@ -35,9 +35,9 @@ export class FeedbackService {
 
   static async createFeedback(data: {
     client_id: number;
-    appointment_id?: number;
+    appointment_id: number;
     rating: number;
-    comment?: string;
+    comment?: string | null;
   }): Promise<Feedback> {
     return await apiClient.post(API_ENDPOINTS.FEEDBACK, data);
   }
