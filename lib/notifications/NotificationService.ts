@@ -16,6 +16,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -162,7 +164,7 @@ export class NotificationService {
           {
             text: 'Open',
             onPress: () => {
-              this.triggerNotificationResponse(notificationData);
+              this.triggerNotificationResponse(data);
             }
           }
         ]

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ScrollView, Pressable, Alert, Platform, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, Alert, Platform, TouchableOpacity, RefreshControl, Image, Modal } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -528,7 +528,7 @@ export default function ProfileScreen() {
   }) => (
     <Pressable onPress={onPress} className="active:opacity-70">
       <View className="flex-row items-center py-4 px-4">
-        <Text className="text-2xl mr-4">{icon}</Text>
+        <Text className="text-gray-600 text-lg mr-4">{icon}</Text>
         <View className="flex-1">
           <Text className="font-medium text-foreground">{title}</Text>
           {subtitle && (
@@ -602,6 +602,33 @@ export default function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
+      {/* Header with Clinic Logo */}
+      <View className="bg-white px-6 py-4 shadow-sm" style={{ paddingTop: insets.top + 16 }}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <View className="w-10 h-10 items-center justify-center mr-3">
+              <Image 
+                source={{ 
+                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
+                  cache: 'force-cache'
+                }}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <Text className="text-gray-800 text-lg font-bold">Dr. Ve Aesthetic</Text>
+              <Text className="text-gray-500 text-xs">My Profile</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Header */}
+      <View className="px-6 pt-8 pb-6">
+        <Text className="text-3xl font-bold text-foreground">Profile</Text>
+      </View>
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -614,75 +641,52 @@ export default function ProfileScreen() {
           />
         }
       >
-        {/* Header */}
-        <View className="px-6 pt-12 pb-6">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-3xl font-bold text-foreground">Profile</Text>
-              {formatLastRefreshTime() && (
-                <Text className="text-xs text-muted-foreground mt-1">
-                  Last updated: {formatLastRefreshTime()}
-                </Text>
-              )}
-            </View>
-            <RefreshButton
-              onRefresh={refreshProfileData}
-              isRefreshing={isRefreshing}
-            />
-          </View>
-        </View>
 
         {/* User Info Card */}
         <View className="px-6 mb-6">
           <Card>
-            <CardContent className="items-center py-6">
-              <TouchableOpacity onPress={handleAvatarUpload} disabled={isUploadingAvatar}>
-                <View className="relative">
-                  <Avatar className="w-24 h-24 mb-4">
-                    <AvatarImage
-                      source={{
-                        uri: ((user as any)?.data || user)?.avatar
-                          ? `https://drveaestheticclinic.online/storage/${((user as any)?.data || user)?.avatar}`
-                          : undefined,
-                        // Add cache control for better image loading
-                        cache: 'reload'
-                      }}
-                      style={{ borderRadius: 48 }}
-                    />
-                    <AvatarFallback>
-                      <Text className="text-2xl">{((user as any)?.data || user)?.name?.split(' ').map(n => n[0]).join('') || 'U'}</Text>
-                    </AvatarFallback>
-                  </Avatar>
+            <CardContent className="py-6">
+              <View className="items-center">
+                {/* Profile Image */}
+                <TouchableOpacity onPress={handleAvatarUpload} disabled={isUploadingAvatar}>
+                  <View className="relative">
+                    <Avatar className="w-20 h-20 mb-3" alt="User Avatar">
+                      <AvatarImage
+                        source={{
+                          uri: ((user as any)?.data || user)?.avatar
+                            ? `https://drveaestheticclinic.online/storage/${((user as any)?.data || user)?.avatar}`
+                            : undefined,
+                          cache: 'reload'
+                        }}
+                        style={{ borderRadius: 40 }}
+                      />
+                      <AvatarFallback>
+                        <Text className="text-xl">{((user as any)?.data || user)?.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}</Text>
+                      </AvatarFallback>
+                    </Avatar>
 
-                  {/* Upload indicator overlay */}
-                  {isUploadingAvatar && (
-                    <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
-                      <Text className="text-white text-sm">📸</Text>
+                    {/* Upload indicator overlay */}
+                    {isUploadingAvatar && (
+                      <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
+                        <Text className="text-white text-sm">📷</Text>
+                      </View>
+                    )}
+
+                    {/* Camera icon overlay */}
+                    <View className="absolute -bottom-1 -right-1 bg-gray-600 rounded-full w-6 h-6 items-center justify-center border-2 border-background">
+                      <Text className="text-white text-xs">📷</Text>
                     </View>
-                  )}
-
-                  {/* Camera icon overlay */}
-                  <View className="absolute -bottom-2 -right-2 bg-primary rounded-full w-8 h-8 items-center justify-center border-2 border-background">
-                    <Text className="text-primary-foreground text-sm">📸</Text>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
 
-              <Text className="text-2xl font-bold text-foreground mb-1">{((user as any)?.data || user)?.name || 'User'}</Text>
-              <Text className="text-muted-foreground mb-2">{((user as any)?.data || user)?.email || 'user@example.com'}</Text>
-              {((user as any)?.data || user)?.phone && (
-                <Text className="text-sm text-muted-foreground mb-1">📞 {((user as any)?.data || user).phone}</Text>
-              )}
-              {((user as any)?.data || user)?.date_of_birth && (
-                <Text className="text-sm text-muted-foreground mb-1">🎂 {((user as any)?.data || user).date_of_birth}</Text>
-              )}
-              {((user as any)?.data || user)?.address && (
-                <Text className="text-sm text-muted-foreground mb-4">📍 {((user as any)?.data || user).address}</Text>
-              )}
-
-              <Button onPress={handleEditProfile} className="bg-primary-gradient">
-                <Text>Edit Profile</Text>
-              </Button>
+                {/* Username */}
+                <Text className="text-lg font-bold text-foreground text-center mb-3">{((user as any)?.data || user)?.name || 'User'}</Text>
+                
+                {/* Edit Profile Button */}
+                <Button onPress={handleEditProfile} className="bg-orange-500 w-32" size="sm">
+                  <Text className="text-white font-semibold">Edit Profile</Text>
+                </Button>
+              </View>
             </CardContent>
           </Card>
         </View>
@@ -691,20 +695,20 @@ export default function ProfileScreen() {
         <View className="px-6 mb-6">
           <Card>
             <CardHeader>
-              <CardTitle>Your Stats</CardTitle>
+              <CardTitle>{((user as any)?.data || user)?.name || 'User'}'s Stats</CardTitle>
             </CardHeader>
             <CardContent>
               <View className="flex-row justify-around py-2">
                 <View className="items-center">
-                  <Text className="text-2xl font-bold text-primary">0</Text>
+                  <Text className="text-2xl font-bold text-gray-600">0</Text>
                   <Text className="text-sm text-muted-foreground">Total Bookings</Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-2xl font-bold text-primary">★</Text>
+                  <Text className="text-2xl font-bold text-gray-600">★</Text>
                   <Text className="text-sm text-muted-foreground">Loyalty</Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-2xl font-bold text-primary">
+                  <Text className="text-2xl font-bold text-gray-600">
                     {user?.created_at ? new Date(user.created_at).getFullYear() : 'New'}
                   </Text>
                   <Text className="text-sm text-muted-foreground">Member Since</Text>
@@ -723,54 +727,34 @@ export default function ProfileScreen() {
             <CardContent className="p-0">
               <MenuOption
                 title="Personal Information"
-                subtitle={`${user?.name || 'Update your name'} • ${user?.phone || 'Add phone number'}`}
-                icon="👤"
-                onPress={handleEditProfile}
+                subtitle="View your personal details"
+                icon="•"
+                onPress={() => {
+                  Alert.alert(
+                    'Personal Information',
+                    `Name: ${((user as any)?.data || user)?.name || 'Not provided'}\n` +
+                    `Email: ${((user as any)?.data || user)?.email || 'Not provided'}\n` +
+                    `Phone: ${((user as any)?.data || user)?.phone || 'Not provided'}\n` +
+                    `Date of Birth: ${((user as any)?.data || user)?.date_of_birth 
+                      ? new Date(((user as any)?.data || user).date_of_birth).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      : 'Not provided'
+                    }\n` +
+                    `Address: ${((user as any)?.data || user)?.address || 'Not provided'}`,
+                    [{ text: 'OK' }]
+                  );
+                }}
               />
               <Separator />
               <MenuOption
                 title="Change Password"
                 subtitle="Update your account password"
-                icon="🔒"
+                icon="•"
                 onPress={handleChangePassword}
               />
-
-            </CardContent>
-          </Card>
-        </View>
-
-        {/* Favorite Services */}
-        <View className="px-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <View className="flex-row flex-wrap gap-2">
-                {user?.phone || user?.address || user?.date_of_birth ? (
-                  <>
-                    {user?.phone && (
-                      <View className="bg-primary/10 px-3 py-2 rounded-full">
-                        <Text className="text-sm text-primary">📞 Verified</Text>
-                      </View>
-                    )}
-                    {user?.address && (
-                      <View className="bg-primary/10 px-3 py-2 rounded-full">
-                        <Text className="text-sm text-primary">🏠 Location Set</Text>
-                      </View>
-                    )}
-                    {user?.date_of_birth && (
-                      <View className="bg-primary/10 px-3 py-2 rounded-full">
-                        <Text className="text-sm text-primary">🎂 Birthday Added</Text>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View className="bg-secondary px-3 py-2 rounded-full">
-                    <Text className="text-sm text-secondary-foreground">Complete your profile for better service</Text>
-                  </View>
-                )}
-              </View>
             </CardContent>
           </Card>
         </View>
@@ -785,28 +769,14 @@ export default function ProfileScreen() {
               <MenuOption
                 title="Help & Support"
                 subtitle="Get help with your account"
-                icon="❓"
+                icon="•"
                 onPress={handleHelp}
               />
               <Separator />
-              {/* <MenuOption
-                title="Test Notification"
-                subtitle="Send a test push notification"
-                icon="🔔"
-                onPress={handleTestNotification}
-              /> */}
-              <Separator />
-              {/* <MenuOption
-                title="Polling Status"
-                subtitle="Check chat polling and fake notifications"
-                icon="🔄"
-                onPress={handleCheckPollingStatus}
-              />
-              <Separator /> */}
               <MenuOption
                 title="About App"
                 subtitle="Learn more about our app"
-                icon="ℹ️"
+                icon="•"
                 onPress={() => {
                   Alert.alert(
                     'About App',
@@ -829,94 +799,180 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Edit Profile Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-full max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Profile</DialogTitle>
-            <DialogDescription>
-              Update your personal information below.
-            </DialogDescription>
-          </DialogHeader>
-
-          <View className="space-y-4">
-            <View className="space-y-2">
-              <Label>Full Name</Label>
-              <Input
-                value={editName}
-                onChangeText={setEditName}
-                placeholder="Enter your full name"
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View className="space-y-2">
-              <Label>Email Address</Label>
-              <Input
-                value={editEmail}
-                onChangeText={setEditEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input
-                value={editPhone}
-                onChangeText={setEditPhone}
-                placeholder="Enter your phone number"
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <View className="space-y-2">
-              <Label>Address</Label>
-              <Input
-                value={editAddress}
-                onChangeText={setEditAddress}
-                placeholder="Enter your address"
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            <View className="space-y-2">
-              <Label>Date of Birth</Label>
-              <Button
-                variant="outline"
-                onPress={() => setShowDatePicker(true)}
-                className="justify-start"
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={isEditDialogOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsEditDialogOpen(false)}
+      >
+        <View className="flex-1 bg-gray-50">
+          {/* Enhanced Header */}
+          <View className="bg-white border-b border-gray-100 shadow-sm">
+            <View className="flex-row items-center justify-between px-6 py-4">
+              <Pressable 
+                onPress={() => setIsEditDialogOpen(false)}
+                className="px-3 py-2 rounded-lg bg-gray-100"
               >
-                <Text className="text-foreground">
-                  {editDateOfBirth
-                    ? editDateOfBirth.toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })
-                    : 'Select Date of Birth'
-                  }
+                <Text className="text-gray-600 font-medium">Cancel</Text>
+              </Pressable>
+              <View className="items-center">
+                <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
+                <Text className="text-xs text-gray-500 mt-1">Update your information</Text>
+              </View>
+              <Pressable 
+                onPress={handleUpdateProfile}
+                disabled={isUpdating || !editName.trim() || !editEmail.trim()}
+                className={`px-4 py-2 rounded-lg ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-200' : 'bg-orange-500'}`}
+              >
+                <Text className={`font-semibold ${isUpdating || !editName.trim() || !editEmail.trim() ? 'text-gray-400' : 'text-white'}`}>
+                  {isUpdating ? 'Saving...' : 'Save'}
                 </Text>
-              </Button>
+              </Pressable>
             </View>
           </View>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onPress={() => setIsEditDialogOpen(false)}
-              disabled={isUpdating}
-            >
-              <Text>Cancel</Text>
-            </Button>
-            <Button onPress={handleUpdateProfile} disabled={isUpdating}>
-              <Text>{isUpdating ? 'Updating...' : 'Save Changes'}</Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Enhanced Content */}
+          <ScrollView 
+            className="flex-1"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 30 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View className="px-6 py-6">
+              {/* Profile Picture Section */}
+              <View className="items-center mb-8">
+                <View className="relative">
+                  <TouchableOpacity onPress={handleAvatarUpload} disabled={isUploadingAvatar}>
+                    <Avatar className="w-24 h-24" alt="User Avatar">
+                      <AvatarImage
+                        source={{
+                          uri: ((user as any)?.data || user)?.avatar
+                            ? `https://drveaestheticclinic.online/storage/${((user as any)?.data || user)?.avatar}`
+                            : undefined,
+                          cache: 'reload'
+                        }}
+                        style={{ borderRadius: 48 }}
+                      />
+                      <AvatarFallback className="bg-orange-100">
+                        <Text className="text-2xl text-orange-600">
+                          {((user as any)?.data || user)?.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
+                        </Text>
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    {/* Upload indicator overlay */}
+                    {isUploadingAvatar && (
+                      <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
+                        <Text className="text-white text-sm">📷</Text>
+                      </View>
+                    )}
+
+                    {/* Camera icon overlay */}
+                    <View className="absolute -bottom-1 -right-1 bg-orange-500 rounded-full w-8 h-8 items-center justify-center border-2 border-white shadow-lg">
+                      <Text className="text-white text-xs">📷</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+                <Text className="text-sm text-gray-500 mt-2">Tap to change photo</Text>
+              </View>
+
+              {/* Form Fields */}
+              <View className="space-y-6">
+                {/* Full Name */}
+                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-sm font-semibold text-gray-800 mb-2">Full Name *</Text>
+                  <Input
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="Enter your full name"
+                    autoCapitalize="words"
+                    className="border-0 bg-transparent text-base h-12 px-0"
+                    style={{ fontSize: 16 }}
+                  />
+                </View>
+
+                {/* Email Address */}
+                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-sm font-semibold text-gray-800 mb-2">Email Address *</Text>
+                  <Input
+                    value={editEmail}
+                    onChangeText={setEditEmail}
+                    placeholder="Enter your email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    className="border-0 bg-transparent text-base h-12 px-0"
+                    style={{ fontSize: 16 }}
+                  />
+                </View>
+
+                {/* Phone Number */}
+                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-sm font-semibold text-gray-800 mb-2">Phone Number</Text>
+                  <Input
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    placeholder="Phone number (optional)"
+                    keyboardType="phone-pad"
+                    className="border-0 bg-transparent text-base h-12 px-0"
+                    style={{ fontSize: 16 }}
+                  />
+                  <Text className="text-xs text-gray-500 mt-2">Will be displayed on your profile</Text>
+                </View>
+
+                {/* Address */}
+                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-sm font-semibold text-gray-800 mb-2">Address</Text>
+                  <Input
+                    value={editAddress}
+                    onChangeText={setEditAddress}
+                    placeholder="Address (optional)"
+                    multiline
+                    numberOfLines={3}
+                    className="border-0 bg-transparent text-base min-h-[80px] px-0"
+                    style={{ fontSize: 16 }}
+                  />
+                  <Text className="text-xs text-gray-500 mt-2">Will be displayed on your profile</Text>
+                </View>
+
+                {/* Date of Birth */}
+                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-sm font-semibold text-gray-800 mb-2">Date of Birth</Text>
+                  <Pressable
+                    onPress={() => setShowDatePicker(true)}
+                    className="h-12 justify-center"
+                  >
+                    <Text className={`text-base ${editDateOfBirth ? 'text-gray-900' : 'text-gray-500'}`}>
+                      {editDateOfBirth
+                        ? editDateOfBirth.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                        : 'Select Date of Birth (optional)'
+                      }
+                    </Text>
+                  </Pressable>
+                  <Text className="text-xs text-gray-500 mt-2">Will be displayed on your profile</Text>
+                </View>
+              </View>
+
+              {/* Save Button (Alternative) */}
+              <View className="mt-8">
+                <Button 
+                  onPress={handleUpdateProfile} 
+                  disabled={isUpdating || !editName.trim() || !editEmail.trim()}
+                  className={`h-14 rounded-xl ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-300' : 'bg-orange-500'}`}
+                >
+                  <Text className={`text-lg font-semibold ${isUpdating || !editName.trim() || !editEmail.trim() ? 'text-gray-500' : 'text-white'}`}>
+                    {isUpdating ? 'Saving Changes...' : 'Save Changes'}
+                  </Text>
+                </Button>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Date Picker for Birthday */}
       {showDatePicker && (

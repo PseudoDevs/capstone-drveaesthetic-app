@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
 import { Input } from '~/components/ui/input';
@@ -21,7 +21,7 @@ export default function ChatScreen() {
   const [currentChatId, setCurrentChatId] = React.useState<string | null>(null);
   const [lastMessageId, setLastMessageId] = React.useState<string | null>(null);
   const [isPolling, setIsPolling] = React.useState(false);
-  const pollingInterval = React.useRef<NodeJS.Timeout | null>(null);
+  const pollingInterval = React.useRef<number | null>(null);
   const appState = React.useRef(AppState.currentState);
   const scrollViewRef = React.useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -50,7 +50,7 @@ export default function ChatScreen() {
       // Try to get existing conversations first
       const conversations = await ChatService.getConversations(1, 1);
       
-      let messagesList = [];
+      let messagesList: Message[] = [];
       
       if (conversations && Array.isArray(conversations) && conversations.length > 0) {
         // If conversation exists, load its messages
@@ -75,7 +75,7 @@ export default function ChatScreen() {
         // If no conversation exists, automatically get the single staff account
         try {
           const staffResponse = await ChatService.searchUsers();
-          const staffList = staffResponse?.data || staffResponse || [];
+          const staffList = Array.isArray(staffResponse) ? staffResponse : [];
           if (Array.isArray(staffList) && staffList.length > 0) {
             // Automatically select the first (and only) staff member
             const staff = staffList[0];
@@ -103,7 +103,7 @@ export default function ChatScreen() {
       }));
 
       // Set up polling for real-time messages
-      const userId = userData?.data?.id || userData?.id;
+      const userId = (userData as any)?.data?.id || (userData as any)?.id;
       if (userId && token) {
         startMessagePolling();
       }
@@ -412,27 +412,32 @@ export default function ChatScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
-      {/* Header */}
-      <View 
-        className="bg-background border-b border-border px-6 py-4"
-        style={{ paddingTop: insets.top + 16 }}
-      >
-        <View className="flex-row items-center">
-          <Button
-            onPress={() => router.back()}
-            variant="ghost"
-            size="sm"
-            className="mr-2 p-2"
-          >
-            <ChevronLeft size={20} className="text-foreground" />
-          </Button>
-          <View className="flex-1">
-            <Text className="text-xl font-bold text-foreground">
-              Dr. Ve Aesthetic Clinic
-            </Text>
-            <Text className="text-sm text-muted-foreground">
-              Chat with our staff
-            </Text>
+      {/* Header with Clinic Logo */}
+      <View className="bg-white px-6 py-4 shadow-sm" style={{ paddingTop: insets.top + 16 }}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <Button
+              onPress={() => router.back()}
+              variant="ghost"
+              size="sm"
+              className="mr-3 p-2"
+            >
+              <ChevronLeft size={20} className="text-foreground" />
+            </Button>
+            <View className="w-10 h-10 items-center justify-center mr-3">
+              <Image 
+                source={{ 
+                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
+                  cache: 'force-cache'
+                }}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <Text className="text-gray-800 text-lg font-bold">Dr. Ve Aesthetic</Text>
+              <Text className="text-gray-500 text-xs">Chat Support</Text>
+            </View>
           </View>
         </View>
       </View>

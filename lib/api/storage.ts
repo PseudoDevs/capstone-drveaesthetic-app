@@ -3,6 +3,8 @@ import { User } from './types';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+const REMEMBERED_EMAIL_KEY = 'remembered_email';
+const REMEMBER_ME_KEY = 'remember_me';
 
 export class AuthStorage {
   static async saveToken(token: string): Promise<void> {
@@ -60,6 +62,52 @@ export class AuthStorage {
     await Promise.all([
       this.removeToken(),
       this.removeUser(),
+      this.clearRememberedCredentials(),
     ]);
+  }
+
+  // Remember Me functionality
+  static async saveRememberedEmail(email: string): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(REMEMBERED_EMAIL_KEY, email);
+    } catch (error) {
+      // Email save failed - silently handled
+    }
+  }
+
+  static async getRememberedEmail(): Promise<string | null> {
+    try {
+      return await SecureStore.getItemAsync(REMEMBERED_EMAIL_KEY);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  static async saveRememberMe(remember: boolean): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(REMEMBER_ME_KEY, remember.toString());
+    } catch (error) {
+      // Remember me save failed - silently handled
+    }
+  }
+
+  static async getRememberMe(): Promise<boolean> {
+    try {
+      const remember = await SecureStore.getItemAsync(REMEMBER_ME_KEY);
+      return remember === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  static async clearRememberedCredentials(): Promise<void> {
+    try {
+      await Promise.all([
+        SecureStore.deleteItemAsync(REMEMBERED_EMAIL_KEY),
+        SecureStore.deleteItemAsync(REMEMBER_ME_KEY),
+      ]);
+    } catch (error) {
+      // Clear failed - silently handled
+    }
   }
 }

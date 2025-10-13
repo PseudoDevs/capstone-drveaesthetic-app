@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ScrollView, Alert, Platform } from 'react-native';
+import { View, ScrollView, Alert, Platform, Modal, Pressable } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
@@ -8,30 +8,18 @@ import { Label } from '~/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Checkbox } from '~/components/ui/checkbox';
 import { Badge } from '~/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '~/components/ui/dialog';
 import { ClinicService, AppointmentService, AuthStorage } from '~/lib/api';
 
 interface AppointmentFormModalProps {
   service?: ClinicService;
   preselectedService?: ClinicService;
-  trigger: React.ReactNode;
+  visible: boolean;
+  onClose: () => void;
   onSuccess?: () => void;
 }
 
-export function AppointmentFormModal({ service, preselectedService, trigger, onSuccess }: AppointmentFormModalProps) {
-  // Use service prop or preselectedService, with service taking priority
-  const selectedService = service || preselectedService;
-
-  if (!selectedService) {
-    return null;
-  }
-  const [isOpen, setIsOpen] = React.useState(false);
+export function AppointmentFormModal({ service, preselectedService, visible, onClose, onSuccess }: AppointmentFormModalProps) {
+  // All hooks must be called before any conditional returns
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = React.useState(false);
@@ -59,7 +47,17 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
   });
 
   const [notes, setNotes] = React.useState('');
+  const [otherConditionsText, setOtherConditionsText] = React.useState('');
   const [errors, setErrors] = React.useState<{[key: string]: string}>({});
+
+  // Use service prop or preselectedService, with service taking priority
+  const selectedService = service || preselectedService;
+
+  // Safety check for onClose
+  if (!onClose || typeof onClose !== 'function') {
+    console.error('AppointmentFormModal: onClose prop is required and must be a function');
+    return null;
+  }
 
   // Generate time slots from 8 AM to 5 PM
   const generateTimeSlots = () => {
@@ -107,6 +105,11 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
       newErrors.timeSlot = 'Please select a time slot';
     }
 
+    // Validate other conditions text if other_conditions is checked
+    if (medicalHistory.other_conditions && !otherConditionsText.trim()) {
+      newErrors.otherConditions = 'Please specify your other medical conditions';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -119,10 +122,36 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
     setIsLoading(true);
     try {
       const user = await AuthStorage.getUser();
-      const userId = user?.data?.id || user?.id;
+      console.log('Retrieved user:', user);
+      
+      // Handle different user data structures
+      let userId = null;
+      if (user) {
+        if (typeof user === 'object' && user.id) {
+          userId = user.id;
+        } else if (typeof user === 'object' && (user as any).data && (user as any).data.id) {
+          userId = (user as any).data.id;
+        } else if (typeof user === 'number') {
+          userId = user;
+        }
+      }
+      
+      console.log('Extracted userId:', userId);
       
       if (!userId) {
-        Alert.alert('Error', 'User not found. Please log in again.');
+        Alert.alert(
+          'Authentication Error', 
+          'Please log in again to book an appointment.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onClose();
+                // You might want to redirect to login here
+              }
+            }
+          ]
+        );
         return;
       }
 
@@ -131,6 +160,7 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
         medical_history: medicalHistory,
         personal_status: personalStatus,
         additional_notes: notes,
+        other_conditions_text: otherConditionsText,
       };
 
       const appointmentData = {
@@ -153,7 +183,7 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
           {
             text: 'OK',
             onPress: () => {
-              setIsOpen(false);
+              onClose();
               onSuccess?.();
               // Reset form
               setSelectedDate(new Date());
@@ -175,142 +205,222 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
                 alcohol_consumer: false,
               });
               setNotes('');
+              setOtherConditionsText('');
               setErrors({});
             },
           },
         ]
       );
     } catch (error: any) {
-      Alert.alert(
-        'Booking Failed',
-        error.response?.data?.message || error.message || 'Failed to book appointment. Please try again.'
-      );
+      console.error('Error booking appointment:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      let errorMessage = 'Failed to book appointment. Please try again.';
+      
+      if (error && typeof error === 'object') {
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.response && error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
+      Alert.alert('Booking Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {trigger}
-      </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>Book Appointment</DialogTitle>
-        </DialogHeader>
-        
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          <View className="space-y-6 p-1">
-            {/* Service Details */}
-            {selectedService && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">{selectedService.service_name}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted-foreground">Price:</Text>
-                    <Text className="font-semibold">₱{selectedService.price?.toLocaleString() || 'N/A'}</Text>
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted-foreground">Duration:</Text>
-                    <Text className="font-semibold">{selectedService.duration || 60} mins</Text>
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted-foreground">Category:</Text>
-                    <Badge variant="secondary">
-                      <Text className="text-xs">{selectedService.category?.category_name || 'General'}</Text>
-                    </Badge>
-                  </View>
-                </CardContent>
-              </Card>
-            )}
+    <Modal
+      visible={visible && !!selectedService}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      {selectedService ? (
+        <View className="flex-1 bg-gray-50">
+        {/* Enhanced Header */}
+        <View className="bg-white border-b border-gray-100 shadow-sm">
+          <View className="flex-row items-center justify-between px-6 py-4">
+            <Pressable 
+              onPress={() => {
+                console.log('Cancel button pressed');
+                if (onClose && typeof onClose === 'function') {
+                  onClose();
+                } else {
+                  console.error('onClose is not a function:', onClose);
+                }
+              }}
+              className="px-3 py-2 rounded-lg bg-gray-100"
+              disabled={isLoading}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text className="text-gray-600 font-medium">Cancel</Text>
+            </Pressable>
+            <View className="items-center">
+              <Text className="text-xl font-bold text-gray-900">Book Appointment</Text>
+              <Text className="text-xs text-gray-500 mt-1">Schedule your service</Text>
+            </View>
+            <Pressable 
+              onPress={() => {
+                console.log('Book button pressed');
+                handleSubmit();
+              }}
+              disabled={isLoading || !selectedDate || !selectedTimeSlot}
+              className={`px-4 py-2 rounded-lg ${isLoading || !selectedDate || !selectedTimeSlot ? 'bg-gray-200' : 'bg-primary'}`}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text className={`font-semibold ${isLoading || !selectedDate || !selectedTimeSlot ? 'text-gray-400' : 'text-white'}`}>
+                {isLoading ? 'Booking...' : 'Book'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
 
+        {/* Enhanced Content */}
+        <ScrollView 
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 30 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="px-6 py-6">
+            {/* Service Info Section */}
+            <View className="items-center mb-8">
+              <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 w-full">
+                <Text className="text-lg font-semibold text-gray-800 text-center mb-2">
+                  {selectedService.service_name}
+                </Text>
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text className="text-gray-600">Price:</Text>
+                  <Text className="font-semibold text-primary">₱{selectedService.price?.toLocaleString() || 'N/A'}</Text>
+                  </View>
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text className="text-gray-600">Duration:</Text>
+                  <Text className="font-semibold text-gray-800">{selectedService.duration || 60} mins</Text>
+                  </View>
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-gray-600">Category:</Text>
+                  <Badge className="bg-primary/10 border-primary/20">
+                    <Text className="text-xs text-primary">{selectedService.category?.category_name || 'General'}</Text>
+                  </Badge>
+                  </View>
+              </View>
+            </View>
+
+            {/* Form Fields */}
+            <View className="space-y-6">
             {/* Date Selection */}
-            <View className="space-y-2">
-              <Label>Appointment Date *</Label>
-              <Button
-                variant="outline"
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-2">Appointment Date *</Text>
+                <Pressable
                 onPress={() => setShowDatePicker(true)}
-                className={`justify-start ${errors.date ? "border-destructive" : ""}`}
+                  className="h-12 justify-center border border-gray-200 rounded-lg px-3"
               >
-                <Text className="text-foreground">
+                  <Text className="text-gray-900 text-base">
                   {selectedDate.toLocaleDateString('en-US', {
-                    weekday: 'short',
+                      weekday: 'long',
                     year: 'numeric',
-                    month: 'short',
+                      month: 'long',
                     day: 'numeric'
                   })}
                 </Text>
-              </Button>
+                </Pressable>
               {errors.date && (
-                <Text className="text-destructive text-sm">{errors.date}</Text>
+                  <Text className="text-red-500 text-sm mt-2">{errors.date}</Text>
               )}
             </View>
 
             {/* Time Slot Selection */}
-            <View className="space-y-3">
-              <Label>Preferred Time Slot *</Label>
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-3">Preferred Time Slot *</Text>
               <View className="flex-row flex-wrap gap-2">
                 {timeSlots.map((slot) => {
                   const isAvailable = availableTimeSlots.includes(slot.value);
                   const isSelected = selectedTimeSlot === slot.value;
                   
                   return (
-                    <Button
+                      <Pressable
                       key={slot.value}
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
                       disabled={!isAvailable}
                       onPress={() => setSelectedTimeSlot(slot.value)}
-                      className={`${!isAvailable ? 'opacity-50' : ''}`}
-                    >
-                      <Text className={isSelected ? "text-primary-foreground" : "text-foreground"}>
+                        className={`px-3 py-2 rounded-lg border ${
+                          isSelected 
+                            ? 'bg-primary border-primary' 
+                            : isAvailable 
+                              ? 'bg-white border-gray-300' 
+                              : 'bg-gray-100 border-gray-200 opacity-50'
+                        }`}
+                      >
+                        <Text className={`text-sm font-medium ${
+                          isSelected ? 'text-white' : isAvailable ? 'text-gray-700' : 'text-gray-400'
+                        }`}>
                         {slot.display}
                       </Text>
-                    </Button>
+                      </Pressable>
                   );
                 })}
               </View>
               {errors.timeSlot && (
-                <Text className="text-destructive text-sm">{errors.timeSlot}</Text>
+                  <Text className="text-red-500 text-sm mt-2">{errors.timeSlot}</Text>
               )}
             </View>
 
             {/* Medical History */}
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-3">Past Medical History</Text>
             <View className="space-y-3">
-              <Label>Past Medical History</Label>
-              <View className="space-y-2">
                 {Object.entries(medicalHistory).map(([key, value]) => (
-                  <View key={key} className="flex-row items-center space-x-2">
+                    <View key={key}>
+                      <View className="flex-row items-center space-x-3">
                     <Checkbox
                       checked={value}
                       onCheckedChange={(checked) => 
                         setMedicalHistory(prev => ({ ...prev, [key]: checked }))
                       }
                     />
-                    <Text className="flex-1 capitalize">
+                        <Text className="flex-1 text-gray-700 capitalize">
                       {key.replace(/_/g, ' ')}
                     </Text>
+                      </View>
+                      {/* Show text input for Other Conditions */}
+                      {key === 'other_conditions' && value && (
+                        <View className="ml-8 mt-2">
+                          <View className="bg-gray-50 rounded-lg border border-gray-200">
+                            <Input
+                              placeholder="Please specify your other medical conditions..."
+                              value={otherConditionsText}
+                              onChangeText={setOtherConditionsText}
+                              multiline
+                              numberOfLines={2}
+                              className="border-0 bg-transparent text-base min-h-[60px] px-3"
+                              style={{ fontSize: 16 }}
+                            />
+                          </View>
+                          {errors.otherConditions && (
+                            <Text className="text-red-500 text-sm mt-1">{errors.otherConditions}</Text>
+                          )}
+                        </View>
+                      )}
                   </View>
                 ))}
               </View>
             </View>
 
             {/* Personal Status */}
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-3">Personal Status</Text>
             <View className="space-y-3">
-              <Label>Personal Status</Label>
-              <View className="space-y-2">
                 {Object.entries(personalStatus).map(([key, value]) => (
-                  <View key={key} className="flex-row items-center space-x-2">
+                    <View key={key} className="flex-row items-center space-x-3">
                     <Checkbox
                       checked={value}
                       onCheckedChange={(checked) => 
                         setPersonalStatus(prev => ({ ...prev, [key]: checked }))
                       }
                     />
-                    <Text className="flex-1 capitalize">
+                      <Text className="flex-1 text-gray-700 capitalize">
                       {key.replace(/_/g, ' ')}
                     </Text>
                   </View>
@@ -319,8 +429,9 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
             </View>
 
             {/* Additional Notes */}
-            <View className="space-y-2">
-              <Label>Additional Notes</Label>
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-2">Additional Notes</Text>
+                <View className="bg-gray-50 rounded-lg border border-gray-200">
               <Input
                 placeholder="Any additional information or special requests..."
                 value={notes}
@@ -328,19 +439,25 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
+                    className="border-0 bg-transparent text-base min-h-[80px] px-3"
+                    style={{ fontSize: 16 }}
               />
+                </View>
+              </View>
             </View>
 
-            {/* Submit Button */}
+            {/* Submit Button (Alternative) */}
+            <View className="mt-8">
             <Button
+                className={`h-14 rounded-xl ${isLoading || !selectedDate || !selectedTimeSlot ? 'bg-gray-300' : 'bg-primary'}`}
               onPress={handleSubmit}
-              disabled={isLoading}
-              className="w-full"
+                disabled={isLoading || !selectedDate || !selectedTimeSlot}
             >
-              <Text>
-                {isLoading ? 'Booking...' : 'Book Appointment'}
+                <Text className={`text-lg font-semibold ${isLoading || !selectedDate || !selectedTimeSlot ? 'text-gray-500' : 'text-white'}`}>
+                  {isLoading ? 'Booking Appointment...' : 'Book Appointment'}
               </Text>
             </Button>
+            </View>
           </View>
         </ScrollView>
 
@@ -360,7 +477,8 @@ export function AppointmentFormModal({ service, preselectedService, trigger, onS
             }}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </View>
+      ) : null}
+    </Modal>
   );
 }

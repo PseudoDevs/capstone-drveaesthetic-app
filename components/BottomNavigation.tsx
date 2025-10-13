@@ -23,37 +23,31 @@ const navItems: NavItem[] = [
     name: 'home',
     path: '/home',
     icon: HomeIcon,
-    label: ''
-  },
-  {
-    name: 'about',
-    path: '/about',
-    icon: Info,
-    label: ''
-  },
-  {
-    name: 'chat',
-    path: '/chat',
-    icon: MessageCircle,
-    label: ''
+    label: 'Home'
   },
   {
     name: 'services',
     path: '/services',
     icon: ScissorsIcon,
-    label: ''
+    label: 'Services'
+  },
+  {
+    name: 'chat',
+    path: '/chat',
+    icon: MessageCircle,
+    label: 'Chat'
   },
   {
     name: 'appointments',
     path: '/appointments',
     icon: CalendarIcon,
-    label: ''
+    label: 'Bookings'
   },
   {
     name: 'profile',
     path: '/profile',
     icon: UserIcon,
-    label: ''
+    label: 'Profile'
   },
 ];
 
@@ -87,12 +81,12 @@ export function BottomNavigation() {
             <Pressable
               key={item.name}
               onPress={() => handleNavPress(item.path)}
-              className="flex-1 items-center py-2 active:opacity-70"
+              className={`flex-1 items-center py-2 active:opacity-70 ${isActive ? 'bg-primary/10 rounded-lg mx-1' : ''}`}
             >
               <View className="relative">
                 <IconComponent
                   size={24}
-                  className={`mb-1 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+                  className={`mb-1 ${isActive ? 'text-primary' : 'text-gray-600'}`}
                 />
                 {item.name === 'chat' && unreadCount > 0 && (
                   <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center">
@@ -103,7 +97,7 @@ export function BottomNavigation() {
                 )}
               </View>
               <Text
-                className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-muted-foreground'
+                className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-gray-600'
                   }`}
               >
                 {item.label}

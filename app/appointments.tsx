@@ -5,7 +5,8 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  Pressable
+  Pressable,
+  Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
@@ -15,6 +16,7 @@ import { Badge } from '~/components/ui/badge';
 import { Separator } from '~/components/ui/separator';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { FeedbackDialog } from '~/components/FeedbackDialog';
+import { AppointmentDiagnostic } from '~/components/AppointmentDiagnostic';
 import { AppointmentService, Appointment, FeedbackService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
 
@@ -39,6 +41,9 @@ export default function AppointmentsScreen() {
     visible: boolean;
     appointment: Appointment | null;
   }>({ visible: false, appointment: null });
+
+  // Diagnostic state
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
 
   // Get user ID safely
   const getUserId = useCallback(() => {
@@ -225,6 +230,28 @@ export default function AppointmentsScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
+      {/* Header with Clinic Logo */}
+      <View className="bg-white px-6 py-4 shadow-sm" style={{ paddingTop: insets.top + 16 }}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <View className="w-10 h-10 items-center justify-center mr-3">
+              <Image 
+                source={{ 
+                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
+                  cache: 'force-cache'
+                }}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <Text className="text-gray-800 text-lg font-bold">Dr. Ve Aesthetic</Text>
+              <Text className="text-gray-500 text-xs">My Appointments</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -233,15 +260,23 @@ export default function AppointmentsScreen() {
         }
       >
         {/* Header */}
-        <View className="px-6 pt-12 pb-6">
+        <View className="px-6 pt-8 pb-6">
           <View className="flex-row items-center justify-between">
             <Text className="text-3xl font-bold text-foreground">Appointments</Text>
-            <Pressable
-              onPress={handleRefresh}
-              className="p-2 rounded-full bg-primary/10"
-            >
-              <Text className="text-lg">🔄</Text>
-            </Pressable>
+            <View className="flex-row space-x-2">
+              <Pressable
+                onPress={() => setShowDiagnostic(!showDiagnostic)}
+                className="p-2 rounded-full bg-orange-100"
+              >
+                <Text className="text-lg">🔧</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRefresh}
+                className="p-2 rounded-full bg-primary/10"
+              >
+                <Text className="text-lg">🔄</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -293,7 +328,7 @@ export default function AppointmentsScreen() {
           {filteredAppointments.length === 0 ? (
             <Card>
               <CardContent className="p-8 items-center">
-                <Text className="text-6xl mb-4">📅</Text>
+                <Text className="text-4xl mb-4 text-gray-400">📅</Text>
                 <Text className="text-xl font-semibold text-center mb-2">
                   No appointments found
                 </Text>
@@ -328,7 +363,7 @@ export default function AppointmentsScreen() {
                   <View className="space-y-3">
                     {/* Date & Time */}
                     <View className="flex-row items-center">
-                      <Text className="text-base mr-2">📅</Text>
+                      <Text className="text-sm text-gray-600 mr-2">Date:</Text>
                       <Text className="flex-1">
                         {appointment.appointment_date} at {appointment.appointment_time}
                       </Text>
@@ -337,7 +372,7 @@ export default function AppointmentsScreen() {
                     {/* Price */}
                     {appointment.service?.price && (
                       <View className="flex-row items-center">
-                        <Text className="text-base mr-2">💰</Text>
+                        <Text className="text-sm text-gray-600 mr-2">Price:</Text>
                         <Text className="flex-1">₱{appointment.service.price}</Text>
                       </View>
                     )}
@@ -345,7 +380,7 @@ export default function AppointmentsScreen() {
                     {/* Notes */}
                     {appointment.notes && (
                       <View className="flex-row items-start">
-                        <Text className="text-base mr-2">📝</Text>
+                        <Text className="text-sm text-gray-600 mr-2">Notes:</Text>
                         <Text className="flex-1 text-muted-foreground">
                           {appointment.notes}
                         </Text>
@@ -364,7 +399,7 @@ export default function AppointmentsScreen() {
                             onPress={() => rescheduleAppointment(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>📅 Reschedule</Text>
+                            <Text>Reschedule</Text>
                           </Button>
                           <Button
                             variant="destructive"
@@ -372,7 +407,7 @@ export default function AppointmentsScreen() {
                             onPress={() => cancelAppointment(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>{processing[appointment.id] ? '⏳' : '❌'} Cancel</Text>
+                            <Text>{processing[appointment.id] ? 'Processing...' : 'Cancel'}</Text>
                           </Button>
                         </>
                       )}
@@ -385,7 +420,7 @@ export default function AppointmentsScreen() {
                             onPress={() => rescheduleAppointment(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>📅 Reschedule</Text>
+                            <Text>Reschedule</Text>
                           </Button>
                           <Button
                             variant="destructive"
@@ -393,7 +428,7 @@ export default function AppointmentsScreen() {
                             onPress={() => cancelAppointment(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>{processing[appointment.id] ? '⏳' : '❌'} Cancel</Text>
+                            <Text>{processing[appointment.id] ? 'Processing...' : 'Cancel'}</Text>
                           </Button>
                         </>
                       )}
@@ -406,7 +441,7 @@ export default function AppointmentsScreen() {
                             onPress={() => rateService(appointment)}
                             disabled={processing[appointment.id]}
                           >
-                            <Text>{processing[appointment.id] ? '⏳' : '⭐'} Feedback</Text>
+                            <Text>{processing[appointment.id] ? 'Processing...' : 'Rate'}</Text>
                           </Button>
                           <Button
                             size="sm"
@@ -433,6 +468,24 @@ export default function AppointmentsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Diagnostic Tool */}
+      {showDiagnostic && (
+        <View className="absolute inset-0 bg-black/50 z-50">
+          <View className="flex-1 bg-white m-4 rounded-lg">
+            <View className="flex-row justify-between items-center p-4 border-b">
+              <Text className="text-lg font-bold">Appointment Diagnostic</Text>
+              <Pressable
+                onPress={() => setShowDiagnostic(false)}
+                className="p-2 rounded-full bg-gray-100"
+              >
+                <Text className="text-lg">✕</Text>
+              </Pressable>
+            </View>
+            <AppointmentDiagnostic />
+          </View>
+        </View>
+      )}
 
       <BottomNavigation />
 

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Modal, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Modal, Pressable, TextInput, ScrollView, Dimensions } from 'react-native';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 
 interface FeedbackDialogProps {
   visible: boolean;
@@ -21,6 +20,9 @@ export function FeedbackDialog({
 }: FeedbackDialogProps) {
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
+  
+  const screenHeight = Dimensions.get('window').height;
+  const screenWidth = Dimensions.get('window').width;
 
   const handleSubmit = () => {
     if (selectedRating > 0) {
@@ -51,28 +53,65 @@ export function FeedbackDialog({
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="fade"
+      animationType="slide"
+      presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <View className="flex-1 bg-black/50 justify-center items-center p-6">
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Card className="w-full max-w-sm">
-            <CardHeader>
-              <CardTitle className="text-center">Leave Feedback</CardTitle>
-              <Text className="text-center text-muted-foreground">
-                How was your experience with {serviceName}?
+      <View className="flex-1 bg-gray-50">
+        {/* Enhanced Header */}
+        <View className="bg-white border-b border-gray-100 shadow-sm">
+          <View className="flex-row items-center justify-between px-6 py-4">
+            <Pressable 
+              onPress={handleClose}
+              className="px-3 py-2 rounded-lg bg-gray-100"
+              disabled={loading}
+            >
+              <Text className="text-gray-600 font-medium">Cancel</Text>
+            </Pressable>
+            <View className="items-center">
+              <Text className="text-xl font-bold text-gray-900">Leave Feedback</Text>
+              <Text className="text-xs text-gray-500 mt-1">Share your experience</Text>
+            </View>
+            <Pressable 
+              onPress={handleSubmit}
+              disabled={selectedRating === 0 || loading}
+              className={`px-4 py-2 rounded-lg ${selectedRating === 0 || loading ? 'bg-gray-200' : 'bg-primary'}`}
+            >
+              <Text className={`font-semibold ${selectedRating === 0 || loading ? 'text-gray-400' : 'text-white'}`}>
+                {loading ? 'Submitting...' : 'Submit'}
               </Text>
-            </CardHeader>
+            </Pressable>
+          </View>
+        </View>
 
-            <CardContent>
-              {/* Star Rating */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold mb-2">Rating *</Text>
-                <View className="flex-row justify-center mb-2">
+        {/* Enhanced Content */}
+        <ScrollView 
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 30 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="px-6 py-6">
+            {/* Service Info Section */}
+            <View className="items-center mb-8">
+              <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 w-full">
+                <Text className="text-lg font-semibold text-gray-800 text-center mb-2">
+                  How was your experience?
+                </Text>
+                <Text className="text-gray-600 text-center">
+                  {serviceName}
+                </Text>
+              </View>
+            </View>
+
+            {/* Form Fields */}
+            <View className="space-y-6">
+              {/* Rating Section */}
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-4">Rating *</Text>
+                
+                {/* Stars */}
+                <View className="flex-row justify-center mb-4">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Pressable
                       key={star}
@@ -89,55 +128,59 @@ export function FeedbackDialog({
                   ))}
                 </View>
 
+                {/* Rating Label */}
                 {selectedRating > 0 && (
-                  <Text className="text-center text-muted-foreground text-sm">
-                    {getRatingLabel(selectedRating)}
-                  </Text>
+                  <View className="items-center">
+                    <Text className="text-primary font-semibold text-lg">
+                      {getRatingLabel(selectedRating)}
+                    </Text>
+                  </View>
                 )}
               </View>
 
-              {/* Comment Field */}
-              <View className="mb-6">
-                <Text className="text-sm font-semibold mb-2">
-                  Comment (Optional)
-                </Text>
-                <TextInput
-                  className="border border-border rounded-md p-3 min-h-[100px] text-foreground bg-background"
-                  placeholder="Tell us more about your experience..."
-                  placeholderTextColor="#9ca3af"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  value={comment}
-                  onChangeText={setComment}
-                  editable={!loading}
-                  maxLength={500}
-                />
-                <Text className="text-xs text-muted-foreground mt-1 text-right">
-                  {comment.length}/500
-                </Text>
+              {/* Comment Section */}
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <Text className="text-sm font-semibold text-gray-800 mb-2">Comment (Optional)</Text>
+                <View className="bg-gray-50 rounded-lg border border-gray-200">
+                  <TextInput
+                    className="p-4 text-gray-800 text-base min-h-[100px]"
+                    placeholder="Tell us more about your experience..."
+                    placeholderTextColor="#9ca3af"
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    value={comment}
+                    onChangeText={setComment}
+                    editable={!loading}
+                    maxLength={500}
+                    style={{ fontSize: 16 }}
+                  />
+                </View>
+                
+                <View className="flex-row justify-between items-center mt-2">
+                  <Text className="text-xs text-gray-500">
+                    Share your detailed experience
+                  </Text>
+                  <Text className="text-xs text-gray-400">
+                    {comment.length}/500
+                  </Text>
+                </View>
               </View>
+            </View>
 
-              {/* Action Buttons */}
-              <View className="flex-row gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onPress={handleClose}
-                  disabled={loading}
-                >
-                  <Text>Cancel</Text>
-                </Button>
-                <Button
-                  className="flex-1"
-                  onPress={handleSubmit}
-                  disabled={selectedRating === 0 || loading}
-                >
-                  <Text>{loading ? 'Submitting...' : 'Submit'}</Text>
-                </Button>
-              </View>
-            </CardContent>
-          </Card>
+            {/* Submit Button (Alternative) */}
+            <View className="mt-8">
+              <Button
+                className={`h-14 rounded-xl ${selectedRating === 0 || loading ? 'bg-gray-300' : 'bg-primary'}`}
+                onPress={handleSubmit}
+                disabled={selectedRating === 0 || loading}
+              >
+                <Text className={`text-lg font-semibold ${selectedRating === 0 || loading ? 'text-gray-500' : 'text-white'}`}>
+                  {loading ? 'Submitting Feedback...' : 'Submit Feedback'}
+                </Text>
+              </Button>
+            </View>
+          </View>
         </ScrollView>
       </View>
     </Modal>

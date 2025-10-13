@@ -10,6 +10,7 @@ import { BottomNavigation } from '~/components/BottomNavigation';
 import { AppointmentFormModal } from '~/components/AppointmentFormModal';
 import { AuthStorage, User, ClinicServiceApi, ClinicService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
+import { Sparkles, Heart, Zap, Star, Users } from 'lucide-react-native';
 
 
 
@@ -94,48 +95,110 @@ export default function HomeScreen() {
     }
   };
 
+  const getServiceIcon = (service: ClinicService) => {
+    const serviceName = service.service_name.toLowerCase();
+    const categoryName = service.category.category_name.toLowerCase();
+    
+    if (serviceName.includes('facial') || categoryName.includes('facial')) {
+      return <Heart size={32} className="text-gray-600" />;
+    } else if (serviceName.includes('massage') || categoryName.includes('massage')) {
+      return <Zap size={32} className="text-gray-600" />;
+    } else if (serviceName.includes('skin') || categoryName.includes('skin')) {
+      return <Sparkles size={32} className="text-gray-600" />;
+    } else {
+      return <Sparkles size={32} className="text-gray-600" />;
+    }
+  };
+
   return (
     <View className="flex-1 bg-secondary/30">
+      {/* Header with Clinic Logo */}
+      <View className="bg-white px-6 py-4 shadow-sm" style={{ paddingTop: insets.top + 16 }}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <View className="w-10 h-10 items-center justify-center mr-3">
+              <Image 
+                source={{ 
+                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
+                  cache: 'force-cache'
+                }}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <Text className="text-gray-800 text-lg font-bold">Dr. Ve Aesthetic</Text>
+              <Text className="text-gray-500 text-xs">Professional Beauty Care</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Welcome Banner */}
-        <View className="bg-primary px-6 pt-12 pb-8">
-          <View className="mb-4">
-            <Text className="text-primary-foreground text-lg font-medium">
+        {/* Hero Section - Website Style */}
+        <View className="relative h-80">
+          {/* Background Image */}
+          <View className="absolute inset-0 w-full h-full">
+            <Image 
+              source={{ 
+                uri: 'https://media.istockphoto.com/id/1366228042/photo/facial-aesthetics-surgery-treatment.jpg?s=612x612&w=0&k=20&c=7zOyHVSkG1FrdqUqG1jXWWdPquSKXotFbvujX1SwPyw=',
+                cache: 'force-cache'
+              }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          </View>
+          
+          {/* Dark Overlay */}
+          <View className="absolute inset-0 bg-black/50" />
+          
+          {/* Content */}
+          <View className="absolute bottom-8 left-6 right-6">
+            {/* Welcome Message */}
+            <Text className="text-white text-3xl font-bold mb-2">
               Welcome back,
             </Text>
-            <Text className="text-primary-foreground text-3xl font-bold">
-              {user?.name || 'User'}! ✨
+            <Text className="text-white text-3xl font-bold mb-2">
+              <Text className="text-orange-400">Beautiful</Text>!
             </Text>
+            
+            <Text className="text-white/90 text-base mb-6 leading-6">
+              Ready to treat yourself? Discover our premium beauty and wellness services designed just for you.
+            </Text>
+            
+            <Button 
+              className="bg-primary self-start shadow-lg"
+              onPress={handleBookNow}
+            >
+              <Text className="text-white font-semibold">Book Appointment</Text>
+            </Button>
           </View>
-
-          <Text className="text-primary-foreground/90 text-base mb-6">
-            Ready to treat yourself? Discover our premium beauty and wellness services.
-          </Text>
-
-          <Button
-            variant="secondary"
-            className="self-start"
-            onPress={handleBookNow}
-          >
-            <Text>Book Appointment</Text>
-          </Button>
         </View>
 
         {/* Quick Stats */}
         <View className="px-6 -mt-6 mb-6">
-          <Card>
-            <CardContent className="flex-row justify-around py-4">
+          <Card className="bg-white border-0 shadow-lg rounded-2xl">
+            <CardContent className="flex-row justify-around py-6">
               <View className="items-center">
-                <Text className="text-2xl font-bold text-primary">{services.length}</Text>
-                <Text className="text-muted-foreground text-sm">Services</Text>
+                <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
+                  <Sparkles size={24} className="text-gray-600" />
+                </View>
+                <Text className="text-2xl font-bold text-orange-400 mb-1">{services.length}</Text>
+                <Text className="text-gray-600 text-sm font-medium">Services</Text>
               </View>
               <View className="items-center">
-                <Text className="text-2xl font-bold text-primary">4.8</Text>
-                <Text className="text-muted-foreground text-sm">Rating</Text>
+                <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
+                  <Star size={24} className="text-gray-600" />
+                </View>
+                <Text className="text-2xl font-bold text-orange-400 mb-1">4.8</Text>
+                <Text className="text-gray-600 text-sm font-medium">Rating</Text>
               </View>
               <View className="items-center">
-                <Text className="text-2xl font-bold text-primary">150+</Text>
-                <Text className="text-muted-foreground text-sm">Happy Clients</Text>
+                <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
+                  <Users size={24} className="text-gray-600" />
+                </View>
+                <Text className="text-2xl font-bold text-orange-400 mb-1">150+</Text>
+                <Text className="text-gray-600 text-sm font-medium">Happy Clients</Text>
               </View>
             </CardContent>
           </Card>
@@ -146,8 +209,30 @@ export default function HomeScreen() {
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-2xl font-bold text-foreground">Popular Services</Text>
             <Pressable onPress={handleViewAllServices}>
-              <Text className="text-primary font-medium">View All</Text>
+              <Text className="text-orange-400 font-medium">View All</Text>
             </Pressable>
+          </View>
+
+          {/* Service Categories Filter */}
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              <View className="flex-row gap-2">
+                <View className="bg-orange-400 px-3 py-2 rounded-full">
+                  <Text className="text-white text-xs font-medium">All</Text>
+                </View>
+                {services.length > 0 ? (
+                  [...new Set(services.map(service => service.category.category_name))].slice(0, 4).map((category, index) => (
+                    <View key={index} className="bg-white px-3 py-2 rounded-full border border-orange-400">
+                      <Text className="text-orange-400 text-xs font-medium">{category}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <View className="bg-white px-3 py-2 rounded-full border border-orange-400">
+                    <Text className="text-orange-400 text-xs font-medium">Loading...</Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
           </View>
 
           <View className="gap-3">
@@ -158,52 +243,56 @@ export default function HomeScreen() {
                 </CardContent>
               </Card>
             ) : services.length > 0 ? (
-              services.slice(0, 4).map((service) => (
+              services.slice(0, 3).map((service) => (
                 <Pressable key={service.id} onPress={() => handleServicePress(service)}>
-                  <Card className="overflow-hidden">
-                    <View className="flex-row">
+                  <Card className="overflow-hidden border-0 shadow-md bg-white">
+                    <View className="flex-row p-4">
+                      {/* Service Icon */}
+                      <View className="w-16 h-16 bg-gradient-to-br from-primary/10 to-primary/20 items-center justify-center rounded-xl border border-primary/20 mr-4">
+                        {getServiceIcon(service)}
+                      </View>
 
                       {/* Service Details */}
-                      <View className="flex-1 p-4">
-                        <View className="flex-row justify-between items-start mb-2">
-                          <Text className="text-lg font-semibold text-foreground flex-1 pr-2">
-                            {service.service_name}
-                          </Text>
-                          <Badge variant="secondary">
-                            <Text className="text-xs">{service.category.category_name}</Text>
-                          </Badge>
-                        </View>
+                      <View className="flex-1">
+                        <Text className="text-lg font-bold text-gray-800 mb-1">
+                          {service.service_name}
+                        </Text>
+                        
+                        <Badge variant="secondary" className="bg-orange-100 border border-orange-200 self-start mb-2">
+                          <Text className="text-xs text-orange-400 font-medium">{service.category.category_name}</Text>
+                        </Badge>
 
-                        <Text className="text-sm text-muted-foreground mb-3 leading-5">
+                        <Text className="text-sm text-gray-600 mb-3 leading-5">
                           {service.description
                             ? service.description.split(' ').slice(0, 10).join(' ') + (service.description.split(' ').length > 10 ? '...' : '')
-                            : 'Professional service'}
+                            : 'Professional aesthetic service'}
                         </Text>
 
                         <View className="flex-row justify-between items-center">
                           <View>
-                            <Text className="text-xl font-bold text-primary">
+                            <Text className="text-lg font-bold text-orange-400">
                               ₱{service.price.toLocaleString()}
                             </Text>
-                            <Text className="text-sm text-muted-foreground">
-                              {service.duration}
+                            <Text className="text-xs text-gray-500">
+                              {service.duration} mins
                             </Text>
                           </View>
 
-                          <View className="items-end">
-                            <Text className="text-sm text-muted-foreground">
-                              {service.status === 'ACTIVE' ? '✅ Available' : '⏳ Coming Soon'}
-                            </Text>
-                            <AppointmentFormModal
-                              service={service}
-                              onSuccess={handleAppointmentBooked}
-                              trigger={
-                                <Button size="sm" className="mt-1" disabled={service.status !== 'ACTIVE'}>
-                                  <Text>Book</Text>
-                                </Button>
-                              }
-                            />
-                          </View>
+                          <AppointmentFormModal
+                            service={service}
+                            onSuccess={handleAppointmentBooked}
+                            trigger={
+                              <Button 
+                                size="sm" 
+                                className="bg-orange-400 shadow-sm" 
+                                disabled={service.status !== 'ACTIVE'}
+                              >
+                                <Text className="text-white font-medium text-xs">
+                                  {service.status === 'ACTIVE' ? 'Book' : 'Soon'}
+                                </Text>
+                              </Button>
+                            }
+                          />
                         </View>
                       </View>
                     </View>

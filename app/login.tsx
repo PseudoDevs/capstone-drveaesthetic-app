@@ -6,7 +6,8 @@ import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { Text } from '~/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
-import { AuthService } from '~/lib/api';
+import { Checkbox } from '~/components/ui/checkbox';
+import { AuthService, AuthStorage } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
 
 export default function LoginScreen() {
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const [password, setPassword] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [errors, setErrors] = React.useState<{
     email?: string;
     password?: string;
@@ -21,6 +23,25 @@ export default function LoginScreen() {
   }>({});
 
   const { login } = useAuth();
+
+  // Load saved credentials on component mount
+  React.useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        const savedEmail = await AuthStorage.getRememberedEmail();
+        const shouldRemember = await AuthStorage.getRememberMe();
+        
+        if (savedEmail && shouldRemember) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch (error) {
+        console.error('Error loading saved credentials:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, []);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -61,6 +82,14 @@ export default function LoginScreen() {
 
       // Use AuthContext login method
       await login(response.token, response.user);
+
+      // Handle Remember Me functionality
+      if (rememberMe) {
+        await AuthStorage.saveRememberedEmail(email);
+        await AuthStorage.saveRememberMe(true);
+      } else {
+        await AuthStorage.clearRememberedCredentials();
+      }
 
       // Navigate to home
       router.replace('/home');
@@ -214,13 +243,15 @@ export default function LoginScreen() {
                 )}
               </View>
 
-              {/* Forgot Password Link */}
-              <View className="items-end">
-                <Link href="/forgot-password" asChild>
-                  <Text className="text-primary text-sm font-medium">
-                    Forgot password?
-                  </Text>
-                </Link>
+              {/* Remember Me Checkbox */}
+              <View className="flex-row items-center space-x-2">
+                <Checkbox
+                  checked={rememberMe}
+                  onCheckedChange={setRememberMe}
+                />
+                <Text className="text-sm text-muted-foreground">
+                  Remember me
+                </Text>
               </View>
 
               {/* Sign In Button */}

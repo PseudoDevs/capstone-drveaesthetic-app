@@ -5,9 +5,9 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { Text } from '~/components/ui/text';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
 import { Checkbox } from '~/components/ui/checkbox';
 import { AuthService, AuthStorage } from '~/lib/api';
+import { useAuth } from '~/lib/context/AuthContext';
 
 export default function SignupScreen() {
   const [formData, setFormData] = React.useState({
@@ -18,6 +18,7 @@ export default function SignupScreen() {
     confirmPassword: '',
   });
   const [agreedToTerms, setAgreedToTerms] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<{
     firstName?: string;
@@ -27,6 +28,8 @@ export default function SignupScreen() {
     confirmPassword?: string;
     general?: string;
   }>({});
+
+  const { login } = useAuth();
 
   const updateFormData = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -107,6 +110,15 @@ export default function SignupScreen() {
         await AuthStorage.saveToken(response.token);
         await AuthStorage.saveUser(response.user);
         
+        // Save credentials if remember me is checked
+        if (rememberMe) {
+          await AuthStorage.saveRememberedEmail(formData.email.trim());
+          await AuthStorage.saveRememberMe(true);
+        } else {
+          // Clear saved credentials if remember me is unchecked
+          await AuthStorage.clearRememberedCredentials();
+        }
+        
         // Set token in API client for immediate use
         AuthService.setToken(response.token);
         
@@ -163,169 +175,205 @@ export default function SignupScreen() {
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
-        className="bg-secondary/30"
+        className="bg-gray-50"
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-1 justify-center p-6 min-h-screen">
           {/* Header */}
-          <View className="mb-8 items-center">
-            <Text className="text-4xl font-bold text-foreground mb-2">Create Account</Text>
-            <Text className="text-muted-foreground text-center text-base">
-              Sign up to get started with your new account
+          <View className="mb-12 items-center">
+            <Text className="text-primary text-sm font-medium tracking-widest mb-3">JOIN US TODAY</Text>
+            <Text className="text-3xl font-bold text-gray-800 mb-4">Create Your Account</Text>
+            <Text className="text-gray-500 text-center text-base">
+              Sign up to access our premium beauty and wellness services
             </Text>
           </View>
 
-          {/* Signup Card */}
-          <Card className="w-full max-w-md mx-auto">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl text-center">Sign Up</CardTitle>
-              <CardDescription className="text-center">
-                Create your account by filling out the form below
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* General Error */}
-              {errors.general && (
-                <View className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-                  <Text className="text-destructive text-sm font-medium">
-                    {errors.general}
+          {/* Signup Form */}
+          <View className="w-full max-w-md mx-auto space-y-6">
+            {/* General Error */}
+            {errors.general && (
+              <View className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                <Text className="text-destructive text-sm font-medium">
+                  {errors.general}
+                </Text>
+              </View>
+            )}
+
+            {/* Name Fields */}
+            <View className="flex-row space-x-3">
+              <View className="flex-1 space-y-3">
+                <Label className="text-gray-700 font-medium">First Name</Label>
+                <Input
+                  placeholder="First name"
+                  value={formData.firstName}
+                  onChangeText={(value) => updateFormData('firstName', value)}
+                  autoCapitalize="words"
+                  textContentType="givenName"
+                  className={`h-14 px-4 text-base border-2 rounded-xl ${
+                    errors.firstName 
+                      ? "border-red-300 bg-red-50" 
+                      : "border-gray-200 bg-white focus:border-gray-300"
+                  }`}
+                />
+                {errors.firstName && (
+                  <Text className="text-red-500 text-sm">
+                    {errors.firstName}
                   </Text>
-                </View>
+                )}
+              </View>
+              <View className="flex-1 space-y-3">
+                <Label className="text-gray-700 font-medium">Last Name</Label>
+                <Input
+                  placeholder="Last name"
+                  value={formData.lastName}
+                  onChangeText={(value) => updateFormData('lastName', value)}
+                  autoCapitalize="words"
+                  textContentType="familyName"
+                  className={`h-14 px-4 text-base border-2 rounded-xl ${
+                    errors.lastName 
+                      ? "border-red-300 bg-red-50" 
+                      : "border-gray-200 bg-white focus:border-gray-300"
+                  }`}
+                />
+                {errors.lastName && (
+                  <Text className="text-red-500 text-sm">
+                    {errors.lastName}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {/* Email Input */}
+            <View className="space-y-3">
+              <Label className="text-gray-700 font-medium">Email Address</Label>
+              <Input
+                placeholder="Enter your email"
+                value={formData.email}
+                onChangeText={(value) => updateFormData('email', value)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
+                className={`h-14 px-4 text-base border-2 rounded-xl ${
+                  errors.email 
+                    ? "border-red-300 bg-red-50" 
+                    : "border-primary/30 bg-white focus:border-primary"
+                }`}
+              />
+              {errors.email && (
+                <Text className="text-red-500 text-sm">
+                  {errors.email}
+                </Text>
               )}
+            </View>
 
-              {/* Name Fields */}
-              <View className="flex-row space-x-2">
-                <View className="flex-1 space-y-2">
-                  <Label nativeID="firstName">First Name</Label>
-                  <Input
-                    placeholder="First name"
-                    value={formData.firstName}
-                    onChangeText={(value) => updateFormData('firstName', value)}
-                    autoCapitalize="words"
-                    textContentType="givenName"
-                    className={errors.firstName ? "border-destructive" : ""}
-                  />
-                  {errors.firstName && (
-                    <Text className="text-destructive text-sm">
-                      {errors.firstName}
-                    </Text>
-                  )}
-                </View>
-                <View className="flex-1 space-y-2">
-                  <Label nativeID="lastName">Last Name</Label>
-                  <Input
-                    placeholder="Last name"
-                    value={formData.lastName}
-                    onChangeText={(value) => updateFormData('lastName', value)}
-                    autoCapitalize="words"
-                    textContentType="familyName"
-                    className={errors.lastName ? "border-destructive" : ""}
-                  />
-                  {errors.lastName && (
-                    <Text className="text-destructive text-sm">
-                      {errors.lastName}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Email Input */}
-              <View className="space-y-2">
-                <Label nativeID="email">Email</Label>
-                <Input
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChangeText={(value) => updateFormData('email', value)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  textContentType="emailAddress"
-                  className={errors.email ? "border-destructive" : ""}
-                />
-                {errors.email && (
-                  <Text className="text-destructive text-sm">
-                    {errors.email}
-                  </Text>
-                )}
-              </View>
-
-              {/* Password Input */}
-              <View className="space-y-2">
-                <Label nativeID="password">Password</Label>
-                <Input
-                  placeholder="Create a password"
-                  value={formData.password}
-                  onChangeText={(value) => updateFormData('password', value)}
-                  secureTextEntry
-                  textContentType="newPassword"
-                  className={errors.password ? "border-destructive" : ""}
-                />
-                {errors.password ? (
-                  <Text className="text-destructive text-sm">
-                    {errors.password}
-                  </Text>
-                ) : (
-                  <Text className="text-xs text-muted-foreground">
-                    Must be at least 8 characters long
-                  </Text>
-                )}
-              </View>
-
-              {/* Confirm Password Input */}
-              <View className="space-y-2">
-                <Label nativeID="confirmPassword">Confirm Password</Label>
-                <Input
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChangeText={(value) => updateFormData('confirmPassword', value)}
-                  secureTextEntry
-                  textContentType="newPassword"
-                  className={errors.confirmPassword ? "border-destructive" : ""}
-                />
-                {errors.confirmPassword && (
-                  <Text className="text-destructive text-sm">
-                    {errors.confirmPassword}
-                  </Text>
-                )}
-              </View>
-
-              {/* Terms and Conditions */}
-              <View className="flex-row items-start space-x-3 pt-2">
-                <Checkbox 
-                  checked={agreedToTerms} 
-                  onCheckedChange={setAgreedToTerms}
-                  className="mt-0.5"
-                />
-                <Text className="flex-1 text-sm text-muted-foreground leading-5">
-                  I agree to the{' '}
-                  <Text className="text-primary font-medium">Terms of Service</Text>
-                  {' '}and{' '}
-                  <Text className="text-primary font-medium">Privacy Policy</Text>
+            {/* Password Input */}
+            <View className="space-y-3">
+              <Label className="text-gray-700 font-medium">Password</Label>
+              <Input
+                placeholder="Create a password"
+                value={formData.password}
+                onChangeText={(value) => updateFormData('password', value)}
+                secureTextEntry
+                textContentType="newPassword"
+                className={`h-14 px-4 text-base border-2 rounded-xl ${
+                  errors.password 
+                    ? "border-red-300 bg-red-50" 
+                    : "border-gray-200 bg-white focus:border-gray-300"
+                }`}
+              />
+              {errors.password ? (
+                <Text className="text-red-500 text-sm">
+                  {errors.password}
                 </Text>
-              </View>
-
-              {/* Sign Up Button */}
-              <Button
-                onPress={handleSignup}
-                disabled={isLoading}
-                className="w-full"
-              >
-                <Text>
-                  {isLoading ? 'Creating account...' : 'Create Account'}
+              ) : (
+                <Text className="text-xs text-gray-500">
+                  Must be at least 8 characters long
                 </Text>
-              </Button>
+              )}
+            </View>
 
-              {/* Sign In Link */}
-              <View className="pt-4">
-                <Text className="text-center text-muted-foreground">
-                  Already have an account?{' '}
-                  <Link href="/login" asChild>
-                    <Text className="text-primary font-medium">Sign in</Text>
-                  </Link>
+            {/* Confirm Password Input */}
+            <View className="space-y-3">
+              <Label className="text-gray-700 font-medium">Confirm Password</Label>
+              <Input
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChangeText={(value) => updateFormData('confirmPassword', value)}
+                secureTextEntry
+                textContentType="newPassword"
+                className={`h-14 px-4 text-base border-2 rounded-xl ${
+                  errors.confirmPassword 
+                    ? "border-red-300 bg-red-50" 
+                    : "border-gray-200 bg-white focus:border-gray-300"
+                }`}
+              />
+              {errors.confirmPassword && (
+                <Text className="text-red-500 text-sm">
+                  {errors.confirmPassword}
                 </Text>
-              </View>
-            </CardContent>
-          </Card>
+              )}
+            </View>
+
+            {/* Terms and Conditions */}
+            <View className="flex-row items-start space-x-3 pt-2">
+              <Checkbox 
+                checked={agreedToTerms} 
+                onCheckedChange={setAgreedToTerms}
+                className="w-5 h-5 mt-0.5"
+              />
+              <Text className="flex-1 text-sm text-gray-600 leading-5">
+                I agree to the{' '}
+                <Text className="text-primary font-medium">Terms of Service</Text>
+                {' '}and{' '}
+                <Text className="text-primary font-medium">Privacy Policy</Text>
+              </Text>
+            </View>
+
+            {/* Remember Me Checkbox */}
+            <View className="flex-row items-center space-x-3 pt-2">
+              <Checkbox 
+                checked={rememberMe} 
+                onCheckedChange={setRememberMe}
+                className="w-5 h-5"
+              />
+              <Text className="text-sm text-gray-600">
+                Remember me for future logins
+              </Text>
+            </View>
+
+            {/* Sign Up Button */}
+            <Button
+              onPress={handleSignup}
+              disabled={isLoading}
+              className="w-full h-14 bg-primary rounded-xl shadow-sm"
+            >
+              <Text className="text-white text-base font-semibold">
+                {isLoading ? 'Creating account...' : 'Create Account →'}
+              </Text>
+            </Button>
+
+
+            {/* Sign In Link */}
+            <View className="pt-6">
+              <Text className="text-center text-gray-500 text-base">
+                Already have an account?{' '}
+                <Link href="/login" asChild>
+                  <Text className="text-primary font-semibold">Sign in</Text>
+                </Link>
+              </Text>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View className="mt-8">
+            <Text className="text-center text-xs text-gray-400">
+              By signing up, you agree to our{' '}
+              <Text className="text-primary">Terms of Service</Text>
+              {' '}and{' '}
+              <Text className="text-primary">Privacy Policy</Text>
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

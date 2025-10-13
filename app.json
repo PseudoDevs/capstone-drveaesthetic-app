@@ -4,12 +4,12 @@
     "slug": "capstone-aesthetic-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/clinic-logo.jpg",
     "scheme": "capstone-aesthetic-app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/clinic-logo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/clinic-logo.jpg",
         "backgroundColor": "#ffffff"
       },
       "package": "capstone.aesthetic.app",
@@ -36,7 +36,7 @@
       "googleServicesFile": "./google-services.json"
     },
     "notification": {
-      "icon": "./assets/images/notification-icon.png",
+      "icon": "./assets/images/clinic-logo.jpg",
       "color": "#000000",
       "androidMode": "default",
       "androidCollapsedTitle": "{{unread_count}} new messages"
@@ -44,7 +44,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/clinic-logo.jpg"
     },
     "plugins": [
       "expo-router",
@@ -52,7 +52,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
+          "icon": "./assets/images/clinic-logo.jpg",
           "color": "#000000",
           "sounds": ["./assets/sounds/notification.wav"]
         }
