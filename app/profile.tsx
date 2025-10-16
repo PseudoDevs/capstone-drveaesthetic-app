@@ -683,7 +683,7 @@ export default function ProfileScreen() {
                 <Text className="text-lg font-bold text-foreground text-center mb-3">{((user as any)?.data || user)?.name || 'User'}</Text>
                 
                 {/* Edit Profile Button */}
-                <Button onPress={handleEditProfile} className="bg-orange-500 w-32" size="sm">
+                <Button onPress={handleEditProfile} className="bg-primary w-32" size="sm">
                   <Text className="text-white font-semibold">Edit Profile</Text>
                 </Button>
               </View>
@@ -823,7 +823,7 @@ export default function ProfileScreen() {
               <Pressable 
                 onPress={handleUpdateProfile}
                 disabled={isUpdating || !editName.trim() || !editEmail.trim()}
-                className={`px-4 py-2 rounded-lg ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-200' : 'bg-orange-500'}`}
+                className={`px-4 py-2 rounded-lg ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-200' : 'bg-primary'}`}
               >
                 <Text className={`font-semibold ${isUpdating || !editName.trim() || !editEmail.trim() ? 'text-gray-400' : 'text-white'}`}>
                   {isUpdating ? 'Saving...' : 'Save'}
@@ -854,8 +854,8 @@ export default function ProfileScreen() {
                         }}
                         style={{ borderRadius: 48 }}
                       />
-                      <AvatarFallback className="bg-orange-100">
-                        <Text className="text-2xl text-orange-600">
+                      <AvatarFallback className="bg-primary/10">
+                        <Text className="text-2xl text-primary">
                           {((user as any)?.data || user)?.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
                         </Text>
                       </AvatarFallback>
@@ -869,7 +869,7 @@ export default function ProfileScreen() {
                     )}
 
                     {/* Camera icon overlay */}
-                    <View className="absolute -bottom-1 -right-1 bg-orange-500 rounded-full w-8 h-8 items-center justify-center border-2 border-white shadow-lg">
+                    <View className="absolute -bottom-1 -right-1 bg-primary rounded-full w-8 h-8 items-center justify-center border-2 border-white shadow-lg">
                       <Text className="text-white text-xs">📷</Text>
                     </View>
                   </TouchableOpacity>
@@ -962,7 +962,7 @@ export default function ProfileScreen() {
                 <Button 
                   onPress={handleUpdateProfile} 
                   disabled={isUpdating || !editName.trim() || !editEmail.trim()}
-                  className={`h-14 rounded-xl ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-300' : 'bg-orange-500'}`}
+                  className={`h-14 rounded-xl ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-300' : 'bg-primary'}`}
                 >
                   <Text className={`text-lg font-semibold ${isUpdating || !editName.trim() || !editEmail.trim() ? 'text-gray-500' : 'text-white'}`}>
                     {isUpdating ? 'Saving Changes...' : 'Save Changes'}

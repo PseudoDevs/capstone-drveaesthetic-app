@@ -159,7 +159,7 @@ export default function HomeScreen() {
               Welcome back,
             </Text>
             <Text className="text-white text-3xl font-bold mb-2">
-              <Text className="text-orange-400">Beautiful</Text>!
+              <Text className="text-primary">Beautiful</Text>!
             </Text>
             
             <Text className="text-white/90 text-base mb-6 leading-6">
@@ -183,21 +183,21 @@ export default function HomeScreen() {
                 <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
                   <Sparkles size={24} className="text-gray-600" />
                 </View>
-                <Text className="text-2xl font-bold text-orange-400 mb-1">{services.length}</Text>
+                <Text className="text-2xl font-bold text-primary mb-1">{services.length}</Text>
                 <Text className="text-gray-600 text-sm font-medium">Services</Text>
               </View>
               <View className="items-center">
                 <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
                   <Star size={24} className="text-gray-600" />
                 </View>
-                <Text className="text-2xl font-bold text-orange-400 mb-1">4.8</Text>
+                <Text className="text-2xl font-bold text-primary mb-1">4.8</Text>
                 <Text className="text-gray-600 text-sm font-medium">Rating</Text>
               </View>
               <View className="items-center">
                 <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
                   <Users size={24} className="text-gray-600" />
                 </View>
-                <Text className="text-2xl font-bold text-orange-400 mb-1">150+</Text>
+                <Text className="text-2xl font-bold text-primary mb-1">150+</Text>
                 <Text className="text-gray-600 text-sm font-medium">Happy Clients</Text>
               </View>
             </CardContent>
@@ -209,7 +209,7 @@ export default function HomeScreen() {
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-2xl font-bold text-foreground">Popular Services</Text>
             <Pressable onPress={handleViewAllServices}>
-              <Text className="text-orange-400 font-medium">View All</Text>
+              <Text className="text-primary font-medium">View All</Text>
             </Pressable>
           </View>
 
@@ -217,18 +217,18 @@ export default function HomeScreen() {
           <View className="mb-4">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
               <View className="flex-row gap-2">
-                <View className="bg-orange-400 px-3 py-2 rounded-full">
+                <View className="bg-primary px-3 py-2 rounded-full">
                   <Text className="text-white text-xs font-medium">All</Text>
                 </View>
                 {services.length > 0 ? (
                   [...new Set(services.map(service => service.category.category_name))].slice(0, 4).map((category, index) => (
-                    <View key={index} className="bg-white px-3 py-2 rounded-full border border-orange-400">
-                      <Text className="text-orange-400 text-xs font-medium">{category}</Text>
+                    <View key={index} className="bg-white px-3 py-2 rounded-full border border-primary">
+                      <Text className="text-primary text-xs font-medium">{category}</Text>
                     </View>
                   ))
                 ) : (
-                  <View className="bg-white px-3 py-2 rounded-full border border-orange-400">
-                    <Text className="text-orange-400 text-xs font-medium">Loading...</Text>
+                  <View className="bg-white px-3 py-2 rounded-full border border-primary">
+                    <Text className="text-primary text-xs font-medium">Loading...</Text>
                   </View>
                 )}
               </View>
@@ -258,8 +258,8 @@ export default function HomeScreen() {
                           {service.service_name}
                         </Text>
                         
-                        <Badge variant="secondary" className="bg-orange-100 border border-orange-200 self-start mb-2">
-                          <Text className="text-xs text-orange-400 font-medium">{service.category.category_name}</Text>
+                        <Badge variant="secondary" className="bg-primary/10 border border-primary/20 self-start mb-2">
+                          <Text className="text-xs text-primary font-medium">{service.category.category_name}</Text>
                         </Badge>
 
                         <Text className="text-sm text-gray-600 mb-3 leading-5">
@@ -270,7 +270,7 @@ export default function HomeScreen() {
 
                         <View className="flex-row justify-between items-center">
                           <View>
-                            <Text className="text-lg font-bold text-orange-400">
+                            <Text className="text-lg font-bold text-primary">
                               ₱{service.price.toLocaleString()}
                             </Text>
                             <Text className="text-xs text-gray-500">
@@ -284,7 +284,7 @@ export default function HomeScreen() {
                             trigger={
                               <Button 
                                 size="sm" 
-                                className="bg-orange-400 shadow-sm" 
+                                className="bg-primary shadow-sm" 
                                 disabled={service.status !== 'ACTIVE'}
                               >
                                 <Text className="text-white font-medium text-xs">

@@ -266,7 +266,7 @@ export default function AppointmentsScreen() {
             <View className="flex-row space-x-2">
               <Pressable
                 onPress={() => setShowDiagnostic(!showDiagnostic)}
-                className="p-2 rounded-full bg-orange-100"
+                className="p-2 rounded-full bg-primary/10"
               >
                 <Text className="text-lg">🔧</Text>
               </Pressable>
