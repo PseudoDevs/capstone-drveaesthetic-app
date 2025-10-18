@@ -31,6 +31,11 @@ export default function SignupScreen() {
 
   const { login } = useAuth();
 
+  // Clear any initial errors when component mounts
+  React.useEffect(() => {
+    setErrors({});
+  }, []);
+
   const updateFormData = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
@@ -40,6 +45,11 @@ export default function SignupScreen() {
     }
     if (field === 'confirmPassword' || field === 'password') {
       setErrors(prev => ({ ...prev, password: undefined, confirmPassword: undefined }));
+    }
+    
+    // Clear general error when user starts typing
+    if (errors.general) {
+      setErrors(prev => ({ ...prev, general: undefined }));
     }
   };
 
@@ -209,11 +219,7 @@ export default function SignupScreen() {
                   onChangeText={(value) => updateFormData('firstName', value)}
                   autoCapitalize="words"
                   textContentType="givenName"
-                  className={`h-14 px-4 text-base border-2 rounded-xl ${
-                    errors.firstName 
-                      ? "border-red-300 bg-red-50" 
-                      : "border-gray-200 bg-white focus:border-gray-300"
-                  }`}
+                  className={errors.firstName ? "border-destructive" : ""}
                 />
                 {errors.firstName && (
                   <Text className="text-red-500 text-sm">
@@ -229,11 +235,7 @@ export default function SignupScreen() {
                   onChangeText={(value) => updateFormData('lastName', value)}
                   autoCapitalize="words"
                   textContentType="familyName"
-                  className={`h-14 px-4 text-base border-2 rounded-xl ${
-                    errors.lastName 
-                      ? "border-red-300 bg-red-50" 
-                      : "border-gray-200 bg-white focus:border-gray-300"
-                  }`}
+                  className={errors.lastName ? "border-destructive" : ""}
                 />
                 {errors.lastName && (
                   <Text className="text-red-500 text-sm">
@@ -254,11 +256,7 @@ export default function SignupScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 textContentType="emailAddress"
-                className={`h-14 px-4 text-base border-2 rounded-xl ${
-                  errors.email 
-                    ? "border-red-300 bg-red-50" 
-                    : "border-primary/30 bg-white focus:border-primary"
-                }`}
+                className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && (
                 <Text className="text-red-500 text-sm">
@@ -276,11 +274,7 @@ export default function SignupScreen() {
                 onChangeText={(value) => updateFormData('password', value)}
                 secureTextEntry
                 textContentType="newPassword"
-                className={`h-14 px-4 text-base border-2 rounded-xl ${
-                  errors.password 
-                    ? "border-red-300 bg-red-50" 
-                    : "border-gray-200 bg-white focus:border-gray-300"
-                }`}
+                className={errors.password ? "border-destructive" : ""}
               />
               {errors.password ? (
                 <Text className="text-red-500 text-sm">
@@ -302,11 +296,7 @@ export default function SignupScreen() {
                 onChangeText={(value) => updateFormData('confirmPassword', value)}
                 secureTextEntry
                 textContentType="newPassword"
-                className={`h-14 px-4 text-base border-2 rounded-xl ${
-                  errors.confirmPassword 
-                    ? "border-red-300 bg-red-50" 
-                    : "border-gray-200 bg-white focus:border-gray-300"
-                }`}
+                className={errors.confirmPassword ? "border-destructive" : ""}
               />
               {errors.confirmPassword && (
                 <Text className="text-red-500 text-sm">

@@ -91,6 +91,8 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
           console.log('📱 Push token obtained:', pushToken);
           // TODO: Send this token to your backend to enable server-side push notifications
           // await AuthService.registerPushToken(pushToken);
+        } else {
+          console.log('📱 Push notifications not available (likely running in Expo Go)');
         }
 
         // Setup notification received listener (when notification arrives while app is open)

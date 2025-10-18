@@ -20,6 +20,7 @@ export default function HomeScreen() {
   const [services, setServices] = React.useState<ClinicService[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingServices, setIsLoadingServices] = React.useState(true);
+  const [selectedServiceForBooking, setSelectedServiceForBooking] = React.useState<ClinicService | null>(null);
   const insets = useSafeAreaInsets();
 
   React.useEffect(() => {
@@ -67,6 +68,7 @@ export default function HomeScreen() {
       loadData();
     }
   }, [authUser, isAuthenticated]);
+
 
   const handleServicePress = (service: ClinicService) => {
     // Navigate to service details or booking
@@ -118,10 +120,7 @@ export default function HomeScreen() {
           <View className="flex-row items-center">
             <View className="w-10 h-10 items-center justify-center mr-3">
               <Image 
-                source={{ 
-                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
-                  cache: 'force-cache'
-                }}
+                source={require('~/assets/images/clinic-logo.jpg')}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
               />
@@ -278,21 +277,16 @@ export default function HomeScreen() {
                             </Text>
                           </View>
 
-                          <AppointmentFormModal
-                            service={service}
-                            onSuccess={handleAppointmentBooked}
-                            trigger={
-                              <Button 
-                                size="sm" 
-                                className="bg-primary shadow-sm" 
-                                disabled={service.status !== 'ACTIVE'}
-                              >
-                                <Text className="text-white font-medium text-xs">
-                                  {service.status === 'ACTIVE' ? 'Book' : 'Soon'}
-                                </Text>
-                              </Button>
-                            }
-                          />
+                          <Button 
+                            size="sm" 
+                            className="bg-primary shadow-sm" 
+                            disabled={service.status !== 'ACTIVE'}
+                            onPress={() => setSelectedServiceForBooking(service)}
+                          >
+                            <Text className="text-white font-medium text-xs">
+                              {service.status === 'ACTIVE' ? 'Book' : 'Soon'}
+                            </Text>
+                          </Button>
                         </View>
                       </View>
                     </View>
@@ -332,6 +326,17 @@ export default function HomeScreen() {
       </ScrollView>
 
       <BottomNavigation />
+
+      {/* Appointment Booking Modal */}
+      <AppointmentFormModal
+        visible={selectedServiceForBooking !== null}
+        service={selectedServiceForBooking}
+        onClose={() => setSelectedServiceForBooking(null)}
+        onSuccess={(appointment) => {
+          setSelectedServiceForBooking(null);
+          handleAppointmentBooked(appointment);
+        }}
+      />
     </View>
   );
 }

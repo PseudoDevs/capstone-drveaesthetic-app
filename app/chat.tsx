@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '~/components/ui/text';
 import { Input } from '~/components/ui/input';
@@ -21,9 +21,12 @@ export default function ChatScreen() {
   const [currentChatId, setCurrentChatId] = React.useState<string | null>(null);
   const [lastMessageId, setLastMessageId] = React.useState<string | null>(null);
   const [isPolling, setIsPolling] = React.useState(false);
+  const [typingMessage, setTypingMessage] = React.useState('');
+  const [inputHeight, setInputHeight] = React.useState(44);
   const pollingInterval = React.useRef<number | null>(null);
   const appState = React.useRef(AppState.currentState);
   const scrollViewRef = React.useRef<ScrollView>(null);
+  const textInputRef = React.useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
   const loadMessages = async () => {
@@ -235,6 +238,7 @@ export default function ChatScreen() {
 
     const messageText = newMessage.trim();
     setNewMessage('');
+    setTypingMessage('');
     setIsSending(true);
 
     try {
@@ -398,11 +402,28 @@ export default function ChatScreen() {
 
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`;
+    if (diffInMinutes < 10080) return `${Math.floor(diffInMinutes / 1440)}d`;
+    
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
+  };
+
+  const handleTypingChange = (text: string) => {
+    setNewMessage(text);
+    setTypingMessage(text);
+  };
+
+  const handleInputContentSizeChange = (event: any) => {
+    const newHeight = Math.min(Math.max(event.nativeEvent.contentSize.height, 44), 120);
+    setInputHeight(newHeight);
   };
 
   const isMyMessage = (message: Message) => {
@@ -422,14 +443,11 @@ export default function ChatScreen() {
               size="sm"
               className="mr-3 p-2"
             >
-              <ChevronLeft size={20} className="text-foreground" />
+              <ChevronLeft size={20} className="text-gray-700" />
             </Button>
             <View className="w-10 h-10 items-center justify-center mr-3">
               <Image 
-                source={{ 
-                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
-                  cache: 'force-cache'
-                }}
+                source={require('~/assets/images/clinic-logo.jpg')}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
               />
@@ -475,62 +493,90 @@ export default function ChatScreen() {
         {!isLoading && !error && (
           <View className="space-y-4" style={{ paddingBottom: 120 }}>
             {messages.length > 0 ? (
-              messages.map((message, index) => (
-                <View
-                  key={`${message.id}-${index}`}
-                  className={`flex-row mb-3 ${isMyMessage(message) ? 'justify-end' : 'justify-start'}`}
-                >
-                  {/* Avatar for staff messages */}
-                  {!isMyMessage(message) && (
-                    <View className="w-8 h-8 rounded-full bg-blue-100 mr-2 items-center justify-center">
-                      <Text className="text-blue-600 font-bold text-xs">Dr</Text>
-                    </View>
-                  )}
+              messages.map((message, index) => {
+                const prevMessage = index > 0 ? messages[index - 1] : null;
+                const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+                const showAvatar = !nextMessage || isMyMessage(message) !== isMyMessage(nextMessage);
+                const showTimestamp = !prevMessage || 
+                  Math.abs(new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime()) > 300000; // 5 minutes
 
-                  <View
-                    className={`max-w-[75%] p-4 rounded-2xl shadow-sm ${
-                      isMyMessage(message)
-                        ? 'bg-blue-500 rounded-br-md'
-                        : 'bg-white border border-gray-200 rounded-bl-md'
-                    }`}
-                  >
-                    {/* Show sender name for both client and staff */}
-                    <Text className={`text-xs font-semibold mb-2 ${
-                      isMyMessage(message)
-                        ? 'text-blue-100'
-                        : 'text-blue-600'
-                    }`}>
-                      {isMyMessage(message)
-                        ? currentUser?.name || currentUser?.data?.name || 'You'
-                        : 'Dr. Ve Staff'
-                      }
-                    </Text>
-                    <Text
-                      className={`text-sm leading-5 ${
-                        isMyMessage(message) ? 'text-white' : 'text-gray-800'
-                      }`}
+                return (
+                  <View key={`${message.id}-${index}`}>
+                    {/* Show timestamp if needed */}
+                    {showTimestamp && (
+                      <View className="items-center my-2">
+                        <Text className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                          {new Date(message.created_at).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View
+                      className={`flex-row mb-1 ${isMyMessage(message) ? 'justify-end' : 'justify-start'}`}
                     >
-                      {message.message}
-                    </Text>
-                    <Text
-                      className={`text-xs mt-2 ${
-                        isMyMessage(message) ? 'text-blue-100' : 'text-gray-500'
-                      }`}
-                    >
-                      {formatMessageTime(message.created_at)}
-                    </Text>
+                       {/* Avatar for staff messages */}
+                       {!isMyMessage(message) && showAvatar && (
+                         <View className="w-8 h-8 rounded-full mr-2 items-center justify-center self-end overflow-hidden">
+                           <Image 
+                             source={require('~/assets/images/clinic-logo.jpg')}
+                             style={{ width: 32, height: 32 }}
+                             resizeMode="cover"
+                           />
+                         </View>
+                       )}
+
+                      {/* Spacer for alignment when no avatar */}
+                      {!isMyMessage(message) && !showAvatar && (
+                        <View className="w-10 mr-2" />
+                      )}
+
+                      <View
+                        className={`max-w-[75%] px-4 py-3 rounded-2xl ${
+                          isMyMessage(message)
+                            ? 'bg-blue-500 rounded-br-md'
+                            : 'bg-gray-100 rounded-bl-md'
+                        }`}
+                        style={{
+                          borderTopLeftRadius: isMyMessage(message) ? 18 : 4,
+                          borderTopRightRadius: isMyMessage(message) ? 4 : 18,
+                          borderBottomLeftRadius: isMyMessage(message) ? 18 : 18,
+                          borderBottomRightRadius: isMyMessage(message) ? 18 : 4,
+                        }}
+                      >
+                        <Text
+                          className={`text-base leading-5 ${
+                            isMyMessage(message) ? 'text-white' : 'text-gray-800'
+                          }`}
+                        >
+                          {message.message}
+                        </Text>
+                      </View>
+
+                      {/* Avatar for client messages */}
+                      {isMyMessage(message) && showAvatar && (
+                        <View className="w-8 h-8 rounded-full bg-green-500 ml-2 items-center justify-center self-end">
+                          <Text className="text-white font-bold text-xs">
+                            {(currentUser?.name || currentUser?.data?.name || 'You').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Spacer for alignment when no avatar */}
+                      {isMyMessage(message) && !showAvatar && (
+                        <View className="w-10 ml-2" />
+                      )}
+                    </View>
+
                   </View>
-
-                  {/* Avatar for client messages */}
-                  {isMyMessage(message) && (
-                    <View className="w-8 h-8 rounded-full bg-green-100 ml-2 items-center justify-center">
-                      <Text className="text-green-600 font-bold text-xs">
-                        {(currentUser?.name || currentUser?.data?.name || 'You').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))
+                );
+              })
             ) : (
               !isLoading && (
                 <View className="items-center py-12">
@@ -549,6 +595,23 @@ export default function ChatScreen() {
                 </View>
               )
             )}
+
+            {/* Show typing message if user is typing */}
+            {typingMessage.trim() && (
+              <View className="flex-row justify-end mb-1">
+                <View className="w-10 ml-2" />
+                <View className="max-w-[75%] px-4 py-3 bg-gray-200 rounded-2xl rounded-br-md">
+                  <Text className="text-base leading-5 text-gray-800">
+                    {typingMessage}
+                  </Text>
+                </View>
+                <View className="w-8 h-8 rounded-full bg-green-500 ml-2 items-center justify-center self-end">
+                  <Text className="text-white font-bold text-xs">
+                    {(currentUser?.name || currentUser?.data?.name || 'You').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -564,47 +627,66 @@ export default function ChatScreen() {
           zIndex: 1000,
         }}
       >
-        <View className="bg-background border-t-2 border-border px-4 py-4" style={{ 
-          paddingBottom: Math.max(insets.bottom + 16, 24),
+        <View className="bg-white px-4 py-3" style={{ 
+          paddingBottom: Math.max(insets.bottom + 12, 20),
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
+          shadowOffset: { width: 0, height: -1 },
           shadowOpacity: 0.1,
-          shadowRadius: 4,
+          shadowRadius: 3,
           elevation: 5,
+          borderTopWidth: 0.5,
+          borderTopColor: '#E5E7EB',
         }}>
-          <View className="flex-row items-center space-x-3">
-            <Input
-              value={newMessage}
-              onChangeText={setNewMessage}
-              placeholder="Type a message..."
-              multiline
-              maxLength={1000}
-              className="flex-1 min-h-[44px] max-h-[120px] bg-white border-2 border-gray-300"
-              textAlignVertical="top"
-              onSubmitEditing={handleSendMessage}
-              blurOnSubmit={false}
-              style={{ 
-                paddingTop: 12, 
-                paddingBottom: 12, 
-                paddingHorizontal: 16,
-                fontSize: 16,
-                borderRadius: 12,
-              }}
-            />
-            <Button
+          <View className="flex-row items-end space-x-3">
+            {/* Message Input Container */}
+            <View className="flex-1 bg-gray-100 rounded-full px-4 py-3 flex-row items-end">
+              <TextInput
+                ref={textInputRef}
+                value={newMessage}
+                onChangeText={handleTypingChange}
+                placeholder="Message..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                maxLength={1000}
+                onContentSizeChange={handleInputContentSizeChange}
+                onSubmitEditing={handleSendMessage}
+                blurOnSubmit={false}
+                style={{ 
+                  flex: 1,
+                  fontSize: 16,
+                  lineHeight: 20,
+                  maxHeight: 100,
+                  minHeight: 20,
+                  textAlignVertical: 'center',
+                  color: '#1F2937',
+                }}
+              />
+            </View>
+
+            {/* Send Button */}
+            <Pressable
               onPress={handleSendMessage}
               disabled={!newMessage.trim() || isSending}
-              size="default"
-              className="h-[44px] px-6 bg-blue-500"
+              className={`w-10 h-10 rounded-full items-center justify-center ${
+                newMessage.trim() ? 'bg-blue-500' : 'bg-gray-300'
+              }`}
               style={{
-                backgroundColor: '#3B82F6',
-                borderRadius: 12,
+                shadowColor: newMessage.trim() ? '#3B82F6' : '#9CA3AF',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.3,
+                shadowRadius: 2,
+                elevation: 2,
               }}
             >
-              <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
-                {isSending ? 'Sending...' : 'Send'}
+              <Text style={{ 
+                color: 'white', 
+                fontWeight: '600', 
+                fontSize: 16,
+                transform: [{ translateX: 1 }]
+              }}>
+                {isSending ? '⏳' : '➤'}
               </Text>
-            </Button>
+            </Pressable>
           </View>
         </View>
       </KeyboardAvoidingView>

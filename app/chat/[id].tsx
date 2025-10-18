@@ -209,7 +209,7 @@ export default function IndividualChatScreen() {
             size="sm"
             className="mr-2 p-2"
           >
-            <ChevronLeft size={20} className="text-foreground" />
+            <ChevronLeft size={20} className="text-gray-700" />
           </Button>
           <View className="flex-1">
             <Text className="text-xl font-bold text-foreground">

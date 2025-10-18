@@ -44,4 +44,9 @@ export const API_ENDPOINTS = {
     CHANGE_PASSWORD: '/client/auth/profile',
     UPLOAD_AVATAR: (userId: number) => `/client/users/${userId}/upload-avatar`,
   },
+  STATISTICS: {
+    RATING: '/client/statistics/rating',
+    CLIENT_COUNT: '/client/statistics/client-count',
+    DASHBOARD: '/client/statistics/dashboard',
+  },
 } as const;

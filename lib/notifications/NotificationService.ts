@@ -245,12 +245,24 @@ export class NotificationService {
 
       // Get push token (for Expo Push Notifications)
       // If you want to use Firebase/APNs directly, you'll need different configuration
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: '0ef114e3-7926-46d0-8936-d0b84c90612f',
-      });
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+          projectId: '0ef114e3-7926-46d0-8936-d0b84c90612f',
+        });
 
-      this.pushToken = tokenData.data;
-      console.log('📱 Push notification token:', this.pushToken);
+        this.pushToken = tokenData.data;
+        console.log('📱 Push notification token:', this.pushToken);
+      } catch (expoError: any) {
+        // Handle Expo Go limitations for push notifications
+        if (expoError.message && expoError.message.includes('SDK 53')) {
+          console.warn('⚠️ Push notifications are not available in Expo Go SDK 53+. Use a development build for full functionality.');
+          // Don't throw the error, just return null to indicate no token available
+          return null;
+        } else {
+          // Re-throw other errors
+          throw expoError;
+        }
+      }
 
       // Set notification channel for Android
       if (Platform.OS === 'android') {

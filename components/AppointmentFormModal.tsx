@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ScrollView, Alert, Platform, Modal, Pressable } from 'react-native';
+import { View, ScrollView, Alert, Platform, Modal, Pressable, Image } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
@@ -173,6 +173,8 @@ export function AppointmentFormModal({ service, preselectedService, visible, onC
         notes: notes,
       };
 
+      console.log('📋 Appointment Data Being Sent:', JSON.stringify(appointmentData, null, 2));
+      console.log('📋 Medical Form Data:', JSON.stringify(medicalFormData, null, 2));
 
       await AppointmentService.createAppointment(appointmentData);
       
@@ -262,19 +264,7 @@ export function AppointmentFormModal({ service, preselectedService, visible, onC
               <Text className="text-xl font-bold text-gray-900">Book Appointment</Text>
               <Text className="text-xs text-gray-500 mt-1">Schedule your service</Text>
             </View>
-            <Pressable 
-              onPress={() => {
-                console.log('Book button pressed');
-                handleSubmit();
-              }}
-              disabled={isLoading || !selectedDate || !selectedTimeSlot}
-              className={`px-4 py-2 rounded-lg ${isLoading || !selectedDate || !selectedTimeSlot ? 'bg-gray-200' : 'bg-primary'}`}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text className={`font-semibold ${isLoading || !selectedDate || !selectedTimeSlot ? 'text-gray-400' : 'text-white'}`}>
-                {isLoading ? 'Booking...' : 'Book'}
-              </Text>
-            </Pressable>
+            <View className="w-16" />
           </View>
         </View>
 
@@ -386,10 +376,10 @@ export function AppointmentFormModal({ service, preselectedService, visible, onC
                       </View>
                       {/* Show text input for Other Conditions */}
                       {key === 'other_conditions' && value && (
-                        <View className="ml-8 mt-2">
+                        <View className="mt-2">
                           <View className="bg-gray-50 rounded-lg border border-gray-200">
                             <Input
-                              placeholder="Please specify your other medical conditions..."
+                              placeholder="Please specify..."
                               value={otherConditionsText}
                               onChangeText={setOtherConditionsText}
                               multiline
@@ -433,7 +423,7 @@ export function AppointmentFormModal({ service, preselectedService, visible, onC
                 <Text className="text-sm font-semibold text-gray-800 mb-2">Additional Notes</Text>
                 <View className="bg-gray-50 rounded-lg border border-gray-200">
               <Input
-                placeholder="Any additional information or special requests..."
+                placeholder="Any additional information..."
                 value={notes}
                 onChangeText={setNotes}
                 multiline

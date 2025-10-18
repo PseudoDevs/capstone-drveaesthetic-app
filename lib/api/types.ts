@@ -100,6 +100,7 @@ export interface AvailableSlot {
 export interface Category {
   id: number;
   name: string;
+  category_name?: string; // Support both field names for API compatibility
   description?: string;
   created_at: string;
   updated_at: string;
@@ -136,6 +137,26 @@ export interface Feedback {
   updated_at: string;
   user?: User;
   appointment?: Appointment;
+}
+
+export interface Statistics {
+  rating: number;
+  client_count: number;
+  total_services: number;
+}
+
+export interface RatingStatistics {
+  average_rating: number;
+  total_ratings: number;
+  rating_breakdown: {
+    [key: string]: number;
+  };
+}
+
+export interface ClientStatistics {
+  total_clients: number;
+  active_clients: number;
+  new_clients_this_month: number;
 }
 
 export interface ApiResponse<T> {

@@ -69,10 +69,29 @@ export default function ServicesScreen() {
         categoriesResponse = [];
       }
 
-
       setServices(servicesResponse.data || []);
-      const categoriesData = Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse.data || categoriesResponse || []);
+      let categoriesData = Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse.data || categoriesResponse || []);
+      
+      // If categories API failed or returned empty, extract categories from services
+      if (!categoriesData || categoriesData.length === 0) {
+        const servicesData = servicesResponse.data || [];
+        const uniqueCategories = servicesData.reduce((acc: any[], service: any) => {
+          const categoryId = service.category?.id;
+          const categoryName = service.category?.category_name;
+          if (categoryId && categoryName && !acc.find(cat => cat.id === categoryId)) {
+            acc.push({
+              id: categoryId,
+              name: categoryName,
+              category_name: categoryName
+            });
+          }
+          return acc;
+        }, []);
+        categoriesData = uniqueCategories;
+      }
+      
       console.log('Categories loaded:', categoriesData);
+      console.log('First category structure:', categoriesData[0]);
       setCategories(categoriesData);
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -140,10 +159,7 @@ export default function ServicesScreen() {
           <View className="flex-row items-center">
             <View className="w-10 h-10 items-center justify-center mr-3">
               <Image 
-                source={{ 
-                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
-                  cache: 'force-cache'
-                }}
+                source={require('~/assets/images/clinic-logo.jpg')}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
               />
@@ -203,7 +219,7 @@ export default function ServicesScreen() {
                   {/* Category Buttons */}
                   {categories && categories.length > 0 && categories.map((category) => {
                     // Handle both possible field names: 'name' or 'category_name'
-                    const categoryName = category.name;
+                    const categoryName = category.name || category.category_name;
 
                     return (
                       <Pressable
@@ -329,7 +345,7 @@ export default function ServicesScreen() {
                         <View className="flex-row justify-between items-center mb-4">
                           <View className="flex-row items-center">
                             <Text className="text-xs text-gray-500 mr-4">
-                              📅 {service.appointments_count} bookings
+                              {service.appointments_count} bookings
                             </Text>
                             <Text className="text-xs text-gray-500">
                               ⏱️ {service.duration} mins

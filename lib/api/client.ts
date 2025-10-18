@@ -62,7 +62,10 @@ class ApiClient {
   }
 
   async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    console.log('🌐 API POST Request:', url);
+    console.log('🌐 Request Data:', JSON.stringify(data, null, 2));
     const response: AxiosResponse<T> = await this.client.post(url, data, config);
+    console.log('🌐 API Response:', JSON.stringify(response.data, null, 2));
     return response.data;
   }
 

@@ -293,7 +293,7 @@ export function RescheduleAppointmentModal({
                 disabled={isLoading}
               >
                 <Text className="text-foreground">
-                  📅 {formatDate(selectedDate)}
+                  {formatDate(selectedDate)}
                 </Text>
               </Button>
               {errors.date && (

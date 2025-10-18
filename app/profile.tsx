@@ -608,10 +608,7 @@ export default function ProfileScreen() {
           <View className="flex-row items-center">
             <View className="w-10 h-10 items-center justify-center mr-3">
               <Image 
-                source={{ 
-                  uri: 'https://scontent.fmnl4-7.fna.fbcdn.net/v/t39.30808-6/418729090_122097326798182940_868500779979598848_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeExtMuvkhE4ITBCXKkbJRRmnZbZoGt7CtWdltmga3sK1V49cOQhA3jFasNBp_355lXq9Z0SxpMfYO43nSvwjgEr&_nc_ohc=sRIUyy60tlQQ7kNvwGcUnnr&_nc_oc=AdnLSrTbOQ_VqB5iAS-lBLvUtMQxUOFutFqRPmhNlYIwvbgB0ZttP2sah71JUpcn8aIdm39tvfnVl_hRldYr2rF4&_nc_zt=23&_nc_ht=scontent.fmnl4-7.fna&_nc_gid=71Jv1Ip9VUfuxJswvEBV2g&oh=00_AfcFGjvy1UU67Wh4qD4cUP0d_bUGB7dFKphEvhc_fkh1GQ&oe=68EEF994',
-                  cache: 'force-cache'
-                }}
+                source={require('~/assets/images/clinic-logo.jpg')}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
               />
@@ -957,18 +954,6 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              {/* Save Button (Alternative) */}
-              <View className="mt-8">
-                <Button 
-                  onPress={handleUpdateProfile} 
-                  disabled={isUpdating || !editName.trim() || !editEmail.trim()}
-                  className={`h-14 rounded-xl ${isUpdating || !editName.trim() || !editEmail.trim() ? 'bg-gray-300' : 'bg-primary'}`}
-                >
-                  <Text className={`text-lg font-semibold ${isUpdating || !editName.trim() || !editEmail.trim() ? 'text-gray-500' : 'text-white'}`}>
-                    {isUpdating ? 'Saving Changes...' : 'Save Changes'}
-                  </Text>
-                </Button>
-              </View>
             </View>
           </ScrollView>
         </View>

@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import { API_ENDPOINTS } from './config';
-import { ClinicService, Category, Feedback, User, ClinicServicesResponse } from './types';
+import { ClinicService, Category, Feedback, User, ClinicServicesResponse, Statistics, RatingStatistics, ClientStatistics } from './types';
 
 export class ClinicServiceApi {
   static async getServices(): Promise<ClinicServicesResponse> {
@@ -122,5 +122,42 @@ export class ProfileService {
 
     // Handle different response structures
     return response.data || response.user || response;
+  }
+}
+
+export class StatisticsService {
+  static async getDashboardStatistics(): Promise<Statistics> {
+    const response = await apiClient.get(API_ENDPOINTS.STATISTICS.DASHBOARD);
+    return response.data || response;
+  }
+
+  static async getRatingStatistics(): Promise<RatingStatistics> {
+    const response = await apiClient.get(API_ENDPOINTS.STATISTICS.RATING);
+    return response.data || response;
+  }
+
+  static async getClientStatistics(): Promise<ClientStatistics> {
+    const response = await apiClient.get(API_ENDPOINTS.STATISTICS.CLIENT_COUNT);
+    return response.data || response;
+  }
+
+  static async getAverageRating(): Promise<number> {
+    try {
+      const ratingStats = await this.getRatingStatistics();
+      return ratingStats.average_rating || 0;
+    } catch (error) {
+      console.error('Failed to fetch rating statistics:', error);
+      return 0;
+    }
+  }
+
+  static async getTotalClients(): Promise<number> {
+    try {
+      const clientStats = await this.getClientStatistics();
+      return clientStats.total_clients || 0;
+    } catch (error) {
+      console.error('Failed to fetch client statistics:', error);
+      return 0;
+    }
   }
 }
