@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Expo: Start Dev Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Expo: Open Web",
+      "type": "shell",
+      "command": "start",
+      "args": ["http://localhost:8081"],
+      "group": "build",
+      "dependsOn": "Expo: Start Dev Server"
+    },
+    {
+      "label": "Expo: Run Android",
+      "type": "shell",
+      "command": "npx",
+      "args": ["expo", "run:android"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    }
+  ]
+}
+
+
+
+
+
+
+

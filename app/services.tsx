@@ -256,7 +256,6 @@ export default function ServicesScreen() {
         {/* Error State */}
         {error && !isLoading && (
           <View className="px-6 items-center py-12">
-            <Text className="text-6xl mb-4">⚠️</Text>
             <Text className="text-lg font-semibold text-foreground mb-2">
               Something went wrong
             </Text>
@@ -348,11 +347,11 @@ export default function ServicesScreen() {
                               {service.appointments_count} bookings
                             </Text>
                             <Text className="text-xs text-gray-500">
-                              ⏱️ {service.duration} mins
+                              {service.duration} mins
                             </Text>
                           </View>
                           <Text className="text-xs text-gray-500">
-                            {service.status === 'ACTIVE' ? '✅ Available' : '⏳ Coming Soon'}
+                            {service.status === 'ACTIVE' ? 'Available' : 'Coming Soon'}
                           </Text>
                         </View>
 

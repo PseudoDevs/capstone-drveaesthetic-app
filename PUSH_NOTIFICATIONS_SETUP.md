@@ -81,3 +81,8 @@ When you have a development build, the app will:
 - If notifications don't work: Check device notification settings
 - If tokens aren't generated: Use development build instead of Expo Go
 
+
+
+
+
+

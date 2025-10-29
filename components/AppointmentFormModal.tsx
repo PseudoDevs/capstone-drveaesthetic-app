@@ -9,13 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Checkbox } from '~/components/ui/checkbox';
 import { Badge } from '~/components/ui/badge';
 import { ClinicService, AppointmentService, AuthStorage } from '~/lib/api';
+import { InputValidator } from '~/lib/security/InputValidator';
+import { AuditLogger } from '~/lib/security/AuditLogger';
 
 interface AppointmentFormModalProps {
-  service?: ClinicService;
+  service?: ClinicService | null;
   preselectedService?: ClinicService;
   visible: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (appointment?: any) => void;
 }
 
 export function AppointmentFormModal({ service, preselectedService, visible, onClose, onSuccess }: AppointmentFormModalProps) {

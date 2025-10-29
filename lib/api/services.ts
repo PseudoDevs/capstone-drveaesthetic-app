@@ -30,7 +30,7 @@ export class CategoryService {
 
 export class FeedbackService {
   static async getFeedbacks(): Promise<Feedback[]> {
-    return await apiClient.get(API_ENDPOINTS.FEEDBACK);
+    return await apiClient.get(API_ENDPOINTS.FEEDBACK.LIST);
   }
 
   static async createFeedback(data: {
@@ -39,7 +39,7 @@ export class FeedbackService {
     rating: number;
     comment?: string | null;
   }): Promise<Feedback> {
-    return await apiClient.post(API_ENDPOINTS.FEEDBACK, data);
+    return await apiClient.post(API_ENDPOINTS.FEEDBACK.CREATE, data);
   }
 
   static async getFeedback(id: string): Promise<Feedback> {

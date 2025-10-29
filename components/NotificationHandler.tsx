@@ -17,8 +17,8 @@ export function NotificationHandler({ isAuthenticated, onUnreadCountUpdate }: No
   const notificationService = NotificationService.getInstance();
   const chatPollingService = ChatPollingServiceInstance;
   const [isNavigationReady, setIsNavigationReady] = useState(false);
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   // Check if navigation context is ready
   useEffect(() => {

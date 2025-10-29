@@ -1,3 +1,5 @@
+export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'scheduled';
+
 export interface User {
   id: number;
   name: string;
@@ -63,7 +65,7 @@ export interface Appointment {
   service_id: number;
   appointment_date: string;
   appointment_time: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'scheduled';
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -109,6 +111,7 @@ export interface Category {
 export interface ClinicService {
   id: number;
   service_name: string;
+  name?: string;
   description?: string;
   thumbnail?: string;
   duration: string;
@@ -288,4 +291,32 @@ export interface Staff {
   specialization?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Bill {
+  id: number;
+  client_id: number;
+  appointment_id?: number;
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  due_date: string;
+  paid_date?: string;
+  description: string;
+  payment_method?: string;
+  created_at: string;
+  updated_at: string;
+  appointment?: Appointment;
+}
+
+export interface Payment {
+  id: number;
+  bill_id: number;
+  amount: number;
+  payment_method: string;
+  payment_date: string;
+  transaction_id?: string;
+  status: 'completed' | 'pending' | 'failed';
+  created_at: string;
+  updated_at: string;
+  bill?: Bill;
 }

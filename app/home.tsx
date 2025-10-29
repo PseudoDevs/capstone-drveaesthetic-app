@@ -8,9 +8,10 @@ import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { AppointmentFormModal } from '~/components/AppointmentFormModal';
-import { AuthStorage, User, ClinicServiceApi, ClinicService } from '~/lib/api';
+import { AuthStorage, User, ClinicServiceApi, ClinicService, AppointmentService, Appointment, MobileDashboardService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
-import { Sparkles, Heart, Zap, Star, Users } from 'lucide-react-native';
+import { Sparkles, Heart, Zap, Star, Users, Calendar, Clock } from 'lucide-react-native';
+import { PushNotificationService } from '~/lib/notifications/PushNotificationService';
 
 
 
@@ -18,8 +19,10 @@ export default function HomeScreen() {
   const { user: authUser, isAuthenticated } = useAuth();
   const [user, setUser] = React.useState<User | null>(null);
   const [services, setServices] = React.useState<ClinicService[]>([]);
+  const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingServices, setIsLoadingServices] = React.useState(true);
+  const [isLoadingAppointments, setIsLoadingAppointments] = React.useState(true);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = React.useState<ClinicService | null>(null);
   const insets = useSafeAreaInsets();
 
@@ -51,6 +54,19 @@ export default function HomeScreen() {
         setIsLoadingServices(true);
         const servicesResponse = await ClinicServiceApi.getServices();
         setServices(servicesResponse.data || []);
+
+        // Load appointments
+        setIsLoadingAppointments(true);
+        const userId = (authUser as any)?.data?.id || (authUser as any)?.id;
+        if (userId) {
+          try {
+            const appointmentsResponse = await AppointmentService.getClientAppointments(userId);
+            setAppointments(appointmentsResponse.data || []);
+          } catch (appointmentError) {
+            console.log('Failed to load appointments:', appointmentError);
+            setAppointments([]);
+          }
+        }
       } catch (error: any) {
         if (error.response?.status === 401) {
           await AuthStorage.clearAll();
@@ -60,6 +76,7 @@ export default function HomeScreen() {
       } finally {
         setIsLoading(false);
         setIsLoadingServices(false);
+        setIsLoadingAppointments(false);
       }
     };
 
@@ -92,10 +109,51 @@ export default function HomeScreen() {
         AuthService.setToken(token);
         const servicesResponse = await ClinicServiceApi.getServices();
         setServices(servicesResponse.data || []);
+        
+        // Also refresh appointments
+        const userId = (authUser as any)?.data?.id || (authUser as any)?.id;
+        if (userId) {
+          try {
+            const appointmentsResponse = await AppointmentService.getClientAppointments(userId);
+            setAppointments(appointmentsResponse.data || []);
+          } catch (error) {
+            console.log('Failed to refresh appointments:', error);
+          }
+        }
       }
     } catch (error) {
     }
   };
+
+  // Calculate appointment statistics
+  const getAppointmentStats = React.useMemo(() => {
+    const total = appointments.length;
+    const pending = appointments.filter(apt => apt.status === 'pending').length;
+    const confirmed = appointments.filter(apt => apt.status === 'confirmed').length;
+    const completed = appointments.filter(apt => apt.status === 'completed').length;
+    const upcoming = appointments.filter(apt => 
+      (apt.status === 'pending' || apt.status === 'confirmed') && 
+      new Date(apt.appointment_date) >= new Date()
+    ).length;
+    
+    return { total, pending, confirmed, completed, upcoming };
+  }, [appointments]);
+
+  // Get next upcoming appointment
+  const nextAppointment = React.useMemo(() => {
+    const upcoming = appointments
+      .filter(apt => 
+        (apt.status === 'pending' || apt.status === 'confirmed') && 
+        new Date(apt.appointment_date) >= new Date()
+      )
+      .sort((a, b) => {
+        const dateA = new Date(`${a.appointment_date} ${a.appointment_time}`);
+        const dateB = new Date(`${b.appointment_date} ${b.appointment_time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+    
+    return upcoming[0] || null;
+  }, [appointments]);
 
   const getServiceIcon = (service: ClinicService) => {
     const serviceName = service.service_name.toLowerCase();
@@ -187,21 +245,92 @@ export default function HomeScreen() {
               </View>
               <View className="items-center">
                 <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
-                  <Star size={24} className="text-gray-600" />
+                  <Calendar size={24} className="text-gray-600" />
                 </View>
-                <Text className="text-2xl font-bold text-primary mb-1">4.8</Text>
-                <Text className="text-gray-600 text-sm font-medium">Rating</Text>
+                <Text className="text-2xl font-bold text-primary mb-1">{getAppointmentStats.total}</Text>
+                <Text className="text-gray-600 text-sm font-medium">Appointments</Text>
               </View>
               <View className="items-center">
                 <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-2">
-                  <Users size={24} className="text-gray-600" />
+                  <Clock size={24} className="text-gray-600" />
                 </View>
-                <Text className="text-2xl font-bold text-primary mb-1">150+</Text>
-                <Text className="text-gray-600 text-sm font-medium">Happy Clients</Text>
+                <Text className="text-2xl font-bold text-primary mb-1">{getAppointmentStats.upcoming}</Text>
+                <Text className="text-gray-600 text-sm font-medium">Upcoming</Text>
               </View>
             </CardContent>
           </Card>
         </View>
+
+        {/* Next Appointment Widget */}
+        {!isLoadingAppointments && nextAppointment && (
+          <View className="px-6 mb-6">
+            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-lg">
+              <CardHeader className="pb-3">
+                <View className="flex-row items-center justify-between">
+                  <CardTitle className="text-lg">Next Appointment</CardTitle>
+                  <Badge className="bg-primary">
+                    <Text className="text-white text-xs font-semibold">
+                      {nextAppointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                    </Text>
+                  </Badge>
+                </View>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-primary/20 rounded-full items-center justify-center mr-3">
+                    <Sparkles size={20} className="text-primary" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-bold text-gray-800 text-lg">
+                      {nextAppointment.service?.service_name || 'Service'}
+                    </Text>
+                    <Text className="text-sm text-gray-600">
+                      {new Date(nextAppointment.appointment_date).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Text>
+                    <Text className="text-sm text-primary font-semibold">
+                      {nextAppointment.appointment_time}
+                    </Text>
+                  </View>
+                </View>
+                <Button 
+                  size="sm" 
+                  className="bg-primary w-full"
+                  onPress={() => router.push('/appointments')}
+                >
+                  <Text className="text-white font-semibold">View Details</Text>
+                </Button>
+              </CardContent>
+            </Card>
+          </View>
+        )}
+
+        {/* Appointment Statistics */}
+        {!isLoadingAppointments && appointments.length > 0 && (
+          <View className="px-6 mb-6">
+            <Text className="text-xl font-bold text-foreground mb-4">Your Appointments</Text>
+            <Card className="bg-white border-0 shadow-md">
+              <CardContent className="flex-row justify-around py-5">
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-yellow-500 mb-1">{getAppointmentStats.pending}</Text>
+                  <Text className="text-gray-600 text-xs font-medium">Pending</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-blue-500 mb-1">{getAppointmentStats.confirmed}</Text>
+                  <Text className="text-gray-600 text-xs font-medium">Confirmed</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-green-500 mb-1">{getAppointmentStats.completed}</Text>
+                  <Text className="text-gray-600 text-xs font-medium">Completed</Text>
+                </View>
+              </CardContent>
+            </Card>
+          </View>
+        )}
 
         {/* Services Section */}
         <View className="px-6 mb-6">
@@ -308,20 +437,49 @@ export default function HomeScreen() {
           className="px-6"
           style={{ paddingBottom: Math.max(insets.bottom + 100, 120) }}
         >
-          <Text className="text-2xl font-bold text-foreground mb-4">Recent Activity</Text>
+          {!isLoadingAppointments && appointments.length > 0 && (() => {
+            const lastCompleted = appointments
+              .filter(apt => apt.status === 'completed')
+              .sort((a, b) => {
+                const dateA = new Date(`${a.appointment_date} ${a.appointment_time}`);
+                const dateB = new Date(`${b.appointment_date} ${b.appointment_time}`);
+                return dateB.getTime() - dateA.getTime();
+              })[0];
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Last Appointment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Text className="text-muted-foreground mb-2">Classic Facial Treatment</Text>
-              <Text className="text-sm text-muted-foreground">March 15, 2024 • Completed</Text>
-              <Button variant="outline" size="sm" className="mt-3 self-start">
-                <Text>Book Again</Text>
-              </Button>
-            </CardContent>
-          </Card>
+            if (lastCompleted) {
+              return (
+                <>
+                  <Text className="text-2xl font-bold text-foreground mb-4">Recent Activity</Text>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Last Appointment</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Text className="text-muted-foreground mb-2 font-semibold">
+                        {lastCompleted.service?.service_name || 'Service'}
+                      </Text>
+                      <Text className="text-sm text-muted-foreground">
+                        {new Date(lastCompleted.appointment_date).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })} • Completed
+                      </Text>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-3 self-start"
+                        onPress={() => lastCompleted.service && setSelectedServiceForBooking(lastCompleted.service)}
+                      >
+                        <Text>Book Again</Text>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </>
+              );
+            }
+            return null;
+          })()}
         </View>
       </ScrollView>
 
@@ -334,7 +492,7 @@ export default function HomeScreen() {
         onClose={() => setSelectedServiceForBooking(null)}
         onSuccess={(appointment) => {
           setSelectedServiceForBooking(null);
-          handleAppointmentBooked(appointment);
+          handleAppointmentBooked();
         }}
       />
     </View>

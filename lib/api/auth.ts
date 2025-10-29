@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import { API_ENDPOINTS, API_CONFIG } from './config';
 import { LoginCredentials, LoginResponse, User, RegisterCredentials, RegisterResponse, GoogleLoginCredentials, GoogleLoginResponse } from './types';
+import { InputValidator } from '../security/InputValidator';
+import { AuditLogger } from '../security/AuditLogger';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
@@ -9,9 +11,31 @@ import { Platform } from 'react-native';
 export class AuthService {
   static async login(credentials: LoginCredentials): Promise<LoginResponse> {
     try {
+      // Validate and sanitize input
+      if (!InputValidator.validateEmail(credentials.email)) {
+        AuditLogger.logSecurityEvent(
+          'Invalid email format during login',
+          'MEDIUM',
+          { email: credentials.email }
+        );
+        throw new Error('Invalid email format');
+      }
+
+      const sanitizedCredentials = {
+        email: InputValidator.sanitizeInput(credentials.email),
+        password: credentials.password // Don't sanitize password as it might contain special chars
+      };
+
+      // Log authentication attempt
+      AuditLogger.logAuthEvent(
+        'LOGIN_ATTEMPT',
+        undefined,
+        { email: sanitizedCredentials.email }
+      );
+
       const apiResponse = await apiClient.post<any>(
         API_ENDPOINTS.AUTH.LOGIN,
-        credentials
+        sanitizedCredentials
       );
 
       // Transform API response to match LoginResponse interface
@@ -23,28 +47,81 @@ export class AuthService {
 
       if (response.token) {
         apiClient.setAuthToken(response.token);
+        
+        // Log successful login
+        AuditLogger.logAuthEvent(
+          'LOGIN_SUCCESS',
+          response.user?.id?.toString(),
+          { email: sanitizedCredentials.email }
+        );
       }
 
       return response;
     } catch (error) {
+      // Log failed login attempt
+      AuditLogger.logAuthEvent(
+        'LOGIN_FAILED',
+        undefined,
+        { 
+          email: credentials.email,
+          error: (error as Error).message 
+        }
+      );
       throw error;
     }
   }
 
   static async register(credentials: RegisterCredentials): Promise<RegisterResponse> {
     try {
+      // Validate input
+      if (!InputValidator.validateEmail(credentials.email)) {
+        throw new Error('Invalid email format');
+      }
+
+      if (!InputValidator.validateName(credentials.name)) {
+        throw new Error('Invalid name format');
+      }
+
+      // Validate password strength
+      const passwordValidation = InputValidator.validatePassword(credentials.password);
+      if (!passwordValidation.isValid) {
+        throw new Error(passwordValidation.errors.join(', '));
+      }
+
+      if (credentials.password !== credentials.password_confirmation) {
+        throw new Error('Passwords do not match');
+      }
+
+      // Sanitize input
       const registrationData: any = {
-        name: credentials.name,
-        email: credentials.email,
-        password: credentials.password,
+        name: InputValidator.sanitizeInput(credentials.name),
+        email: InputValidator.sanitizeInput(credentials.email),
+        password: credentials.password, // Don't sanitize password
         password_confirmation: credentials.password_confirmation,
       };
 
       // Add optional fields if provided
-      if (credentials.phone) registrationData.phone = credentials.phone;
-      if (credentials.date_of_birth) registrationData.date_of_birth = credentials.date_of_birth;
-      if (credentials.address) registrationData.address = credentials.address;
+      if (credentials.phone) {
+        if (!InputValidator.validatePhone(credentials.phone)) {
+          throw new Error('Invalid phone number format');
+        }
+        registrationData.phone = InputValidator.sanitizeInput(credentials.phone);
+      }
+      
+      if (credentials.date_of_birth) {
+        registrationData.date_of_birth = credentials.date_of_birth;
+      }
+      
+      if (credentials.address) {
+        registrationData.address = InputValidator.sanitizeInput(credentials.address);
+      }
 
+      // Log registration attempt
+      AuditLogger.logAuthEvent(
+        'REGISTER_ATTEMPT',
+        undefined,
+        { email: registrationData.email }
+      );
 
       const apiResponse = await apiClient.post<any>(
         API_ENDPOINTS.AUTH.REGISTER,
@@ -61,10 +138,26 @@ export class AuthService {
       // Registration successful, set token if provided
       if (response.token) {
         apiClient.setAuthToken(response.token);
+        
+        // Log successful registration
+        AuditLogger.logAuthEvent(
+          'REGISTER_SUCCESS',
+          response.user?.id?.toString(),
+          { email: registrationData.email }
+        );
       }
 
       return response;
     } catch (error) {
+      // Log failed registration
+      AuditLogger.logAuthEvent(
+        'REGISTER_FAILED',
+        undefined,
+        { 
+          email: credentials.email,
+          error: (error as Error).message 
+        }
+      );
       throw error;
     }
   }

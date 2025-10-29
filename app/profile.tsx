@@ -299,7 +299,7 @@ export default function ProfileScreen() {
                 const chatService = (await import('~/lib/services/ChatPollingService')).default;
                 await chatService.simulateNewMessage(
                   'Dr. Ve Clinic',
-                  'Hello! This is a fake chat notification for testing purposes. 💬',
+                  'Hello! This is a fake chat notification for testing purposes.',
                   '1'
                 );
                 Alert.alert('Success', 'Fake chat notification triggered!');
@@ -552,7 +552,6 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <View className="flex-1 bg-secondary/30 justify-center items-center px-6">
-        <Text className="text-6xl mb-4">⚠️</Text>
         <Text className="text-xl font-bold text-foreground mb-2 text-center">
           Unable to Load Profile
         </Text>
@@ -744,6 +743,34 @@ export default function ProfileScreen() {
                     [{ text: 'OK' }]
                   );
                 }}
+              />
+              <Separator />
+              <MenuOption
+                title="Billing & Payments"
+                subtitle="View bills and payment history"
+                icon="•"
+                onPress={() => router.push('/billing' as any)}
+              />
+              <Separator />
+              <MenuOption
+                title="Payment History"
+                subtitle="View transaction history"
+                icon="•"
+                onPress={() => router.push('/payment-history' as any)}
+              />
+              <Separator />
+              <MenuOption
+                title="Medical Records"
+                subtitle="Prescriptions and certificates"
+                icon="•"
+                onPress={() => router.push('/medical-records' as any)}
+              />
+              <Separator />
+              <MenuOption
+                title="Calendar View"
+                subtitle="View appointments in calendar"
+                icon="•"
+                onPress={() => router.push('/calendar' as any)}
               />
               <Separator />
               <MenuOption

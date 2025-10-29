@@ -9,6 +9,7 @@ import {
   Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Text } from '~/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
@@ -17,10 +18,11 @@ import { Separator } from '~/components/ui/separator';
 import { BottomNavigation } from '~/components/BottomNavigation';
 import { FeedbackDialog } from '~/components/FeedbackDialog';
 import { AppointmentDiagnostic } from '~/components/AppointmentDiagnostic';
+import { RescheduleAppointmentModal } from '~/components/RescheduleAppointmentModal';
 import { AppointmentService, Appointment, FeedbackService } from '~/lib/api';
 import { useAuth } from '~/lib/context/AuthContext';
 
-type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'scheduled';
 
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
@@ -121,23 +123,7 @@ export default function AppointmentsScreen() {
     );
   }, []);
 
-  // Reschedule appointment
-  const rescheduleAppointment = useCallback(async (appointment: Appointment) => {
-    Alert.alert(
-      'Reschedule Appointment',
-      'Would you like to reschedule this appointment?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reschedule',
-          onPress: () => {
-            // For now, show a simple prompt - you can enhance this later
-            Alert.alert('Info', 'Please call the clinic to reschedule: +63 123 456 7890');
-          }
-        }
-      ]
-    );
-  }, []);
+  // Reschedule appointment - handled by RescheduleAppointmentModal component
 
   // Rate service
   const rateService = useCallback((appointment: Appointment) => {
@@ -260,20 +246,12 @@ export default function AppointmentsScreen() {
         <View className="px-6 pt-8 pb-6">
           <View className="flex-row items-center justify-between">
             <Text className="text-3xl font-bold text-foreground">Appointments</Text>
-            <View className="flex-row space-x-2">
-              <Pressable
-                onPress={() => setShowDiagnostic(!showDiagnostic)}
-                className="p-2 rounded-full bg-primary/10"
-              >
-                <Text className="text-lg">🔧</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleRefresh}
-                className="p-2 rounded-full bg-primary/10"
-              >
-                <Text className="text-lg">🔄</Text>
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={handleRefresh}
+              className="p-2 rounded-full bg-primary/10"
+            >
+              <Text className="text-sm font-medium text-primary">Refresh</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -321,11 +299,10 @@ export default function AppointmentsScreen() {
         )}
 
         {/* Appointments List */}
-        <View className="px-6 pb-32">
+        <View className="px-4 pb-24">
           {filteredAppointments.length === 0 ? (
             <Card>
               <CardContent className="p-8 items-center">
-                <Text className="text-4xl mb-4 text-gray-400">📋</Text>
                 <Text className="text-xl font-semibold text-center mb-2">
                   No appointments found
                 </Text>
@@ -390,14 +367,19 @@ export default function AppointmentsScreen() {
                     <View className="flex-row flex-wrap gap-2">
                       {appointment.status === 'pending' && (
                         <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onPress={() => rescheduleAppointment(appointment)}
-                            disabled={processing[appointment.id]}
-                          >
-                            <Text>Reschedule</Text>
-                          </Button>
+                          <RescheduleAppointmentModal
+                            appointment={appointment}
+                            trigger={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={processing[appointment.id]}
+                              >
+                                <Text>Reschedule</Text>
+                              </Button>
+                            }
+                            onSuccess={loadAppointments}
+                          />
                           <Button
                             variant="destructive"
                             size="sm"
@@ -411,14 +393,19 @@ export default function AppointmentsScreen() {
 
                       {appointment.status === 'confirmed' && (
                         <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onPress={() => rescheduleAppointment(appointment)}
-                            disabled={processing[appointment.id]}
-                          >
-                            <Text>Reschedule</Text>
-                          </Button>
+                          <RescheduleAppointmentModal
+                            appointment={appointment}
+                            trigger={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={processing[appointment.id]}
+                              >
+                                <Text>Reschedule</Text>
+                              </Button>
+                            }
+                            onSuccess={loadAppointments}
+                          />
                           <Button
                             variant="destructive"
                             size="sm"
@@ -441,10 +428,17 @@ export default function AppointmentsScreen() {
                             <Text>{processing[appointment.id] ? 'Processing...' : 'Rate'}</Text>
                           </Button>
                           <Button
+                            variant="outline"
+                            size="sm"
+                            onPress={() => router.push('/medical-records')}
+                          >
+                            <Text>View Certificates</Text>
+                          </Button>
+                          <Button
                             size="sm"
                             onPress={() => bookAgain(appointment)}
                           >
-                            <Text>🔄 Book Again</Text>
+                            <Text>Book Again</Text>
                           </Button>
                         </>
                       )}
@@ -454,7 +448,7 @@ export default function AppointmentsScreen() {
                           size="sm"
                           onPress={() => bookAgain(appointment)}
                         >
-                          <Text>🔄 Book Again</Text>
+                          <Text>Book Again</Text>
                         </Button>
                       )}
                     </View>
@@ -476,7 +470,7 @@ export default function AppointmentsScreen() {
                 onPress={() => setShowDiagnostic(false)}
                 className="p-2 rounded-full bg-gray-100"
               >
-                <Text className="text-lg">✕</Text>
+                <Text className="text-sm font-medium">Close</Text>
               </Pressable>
             </View>
             <AppointmentDiagnostic />

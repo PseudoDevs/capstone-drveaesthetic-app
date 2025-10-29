@@ -101,6 +101,30 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name='billing'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='payment-history'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='medical-records'
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name='calendar'
+          options={{
+            headerShown: false,
+          }}
+        />
         </Stack>
         <PortalHost />
       </ThemeProvider>
