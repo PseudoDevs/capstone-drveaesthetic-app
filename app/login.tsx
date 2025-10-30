@@ -14,7 +14,6 @@ export default function LoginScreen() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
   const [rememberMe, setRememberMe] = React.useState(false);
   const [errors, setErrors] = React.useState<{
     email?: string;
@@ -46,14 +45,12 @@ export default function LoginScreen() {
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
     
-    // Email validation
     if (!email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Please enter a valid email address';
     }
     
-    // Password validation
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (password.length < 6) {
@@ -66,61 +63,38 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setErrors({});
-    
     if (!validateForm()) {
       return;
     }
-    
     setIsLoading(true);
-    
     try {
       const response = await AuthService.login({
         email: email,
         password: password,
       });
-
-
-      // Use AuthContext login method
       await login(response.token, response.user);
-
-      // Handle Remember Me functionality
       if (rememberMe) {
         await AuthStorage.saveRememberedEmail(email);
         await AuthStorage.saveRememberMe(true);
       } else {
         await AuthStorage.clearRememberedCredentials();
       }
-
-      // Navigate to home
       router.replace('/home');
     } catch (error: any) {
-      
       if (error.response?.data?.errors) {
         const newErrors: { email?: string; password?: string; general?: string } = {};
         const errorData = error.response.data.errors;
-        
         if (errorData.email) {
-          newErrors.email = Array.isArray(errorData.email) 
-            ? errorData.email[0] 
-            : errorData.email;
+          newErrors.email = Array.isArray(errorData.email) ? errorData.email[0] : errorData.email;
         }
-        
         if (errorData.password) {
-          newErrors.password = Array.isArray(errorData.password) 
-            ? errorData.password[0] 
-            : errorData.password;
+          newErrors.password = Array.isArray(errorData.password) ? errorData.password[0] : errorData.password;
         }
-        
-        const otherErrors = Object.keys(errorData).filter(key => 
-          !['email', 'password'].includes(key)
-        );
+        const otherErrors = Object.keys(errorData).filter(key => !['email', 'password'].includes(key));
         if (otherErrors.length > 0) {
-          const errorMessages = otherErrors.map(key => 
-            Array.isArray(errorData[key]) ? errorData[key][0] : errorData[key]
-          );
+          const errorMessages = otherErrors.map(key => Array.isArray(errorData[key]) ? errorData[key][0] : errorData[key]);
           newErrors.general = errorMessages.join(', ');
         }
-        
         setErrors(newErrors);
       } else {
         const errorMessage = error.response?.data?.message || error.message || 'Invalid credentials';
@@ -130,33 +104,6 @@ export default function LoginScreen() {
       setIsLoading(false);
     }
   };
-
-  const handleGoogleLogin = async () => {
-    setErrors({});
-    setIsGoogleLoading(true);
-    
-    try {
-
-      // Use simple Expo-compatible Google authentication
-      const response = await AuthService.authenticateWithGoogleSimple();
-
-
-      // Use AuthContext login method
-      await login(response.token, response.user);
-
-      // Navigate to home
-      router.replace('/home');
-    } catch (error: any) {
-      
-      setErrors({ 
-        general: error.message || 'Google Sign-In failed. Please try again.' 
-      });
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-
 
   return (
     <KeyboardAvoidingView
@@ -169,7 +116,6 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-1 justify-center p-6 min-h-screen">
-          {/* Header */}
           <View className="mb-8 items-center">
             <Text className="text-4xl font-bold text-foreground mb-2">Welcome Back</Text>
             <Text className="text-muted-foreground text-center text-base">
@@ -177,7 +123,6 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          {/* Login Card */}
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-center">Sign In</CardTitle>
@@ -186,7 +131,6 @@ export default function LoginScreen() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* General Error */}
               {errors.general && (
                 <View className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
                   <Text className="text-destructive text-sm font-medium">
@@ -195,7 +139,6 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Email Input */}
               <View className="space-y-2">
                 <Label nativeID="email">Email</Label>
                 <Input
@@ -220,7 +163,6 @@ export default function LoginScreen() {
                 )}
               </View>
 
-              {/* Password Input */}
               <View className="space-y-2">
                 <Label nativeID="password">Password</Label>
                 <Input
@@ -243,7 +185,6 @@ export default function LoginScreen() {
                 )}
               </View>
 
-              {/* Remember Me Checkbox */}
               <View className="flex-row items-center space-x-2">
                 <Checkbox
                   checked={rememberMe}
@@ -254,10 +195,9 @@ export default function LoginScreen() {
                 </Text>
               </View>
 
-              {/* Sign In Button */}
               <Button
                 onPress={handleLogin}
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
                 className="w-full"
               >
                 <Text>
@@ -265,27 +205,6 @@ export default function LoginScreen() {
                 </Text>
               </Button>
 
-
-              {/* Divider */}
-              <View className="flex-row items-center py-4">
-                <View className="flex-1 h-px bg-border" />
-                <Text className="mx-4 text-muted-foreground text-sm">or</Text>
-                <View className="flex-1 h-px bg-border" />
-              </View>
-
-              {/* Google Sign In Button */}
-              {/* <Button
-                onPress={handleGoogleLogin}
-                disabled={isLoading || isGoogleLoading}
-                variant="outline"
-                className="w-full"
-              >
-                <Text>
-                  {isGoogleLoading ? 'Signing in with Google...' : 'Continue with Google'}
-                </Text>
-              </Button> */}
-
-              {/* Sign Up Link */}
               <View className="pt-4">
                 <Text className="text-center text-muted-foreground">
                   Don't have an account?{' '}
@@ -297,7 +216,6 @@ export default function LoginScreen() {
             </CardContent>
           </Card>
 
-          {/* Footer */}
           <View className="mt-8">
             <Text className="text-center text-xs text-muted-foreground">
               By signing in, you agree to our{' '}
