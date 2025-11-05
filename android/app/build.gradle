@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.drveaestheticapp"
+    namespace "capstone.aesthetic.app"
     defaultConfig {
-        applicationId "com.drveaestheticapp"
+        applicationId "capstone.aesthetic.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
