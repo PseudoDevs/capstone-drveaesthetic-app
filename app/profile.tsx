@@ -753,27 +753,6 @@ export default function ProfileScreen() {
               />
               <Separator />
               <MenuOption
-                title="Payment History"
-                subtitle="View transaction history"
-                icon="•"
-                onPress={() => router.push('/payment-history' as any)}
-              />
-              <Separator />
-              <MenuOption
-                title="Medical Records"
-                subtitle="Prescriptions and certificates"
-                icon="•"
-                onPress={() => router.push('/medical-records' as any)}
-              />
-              <Separator />
-              <MenuOption
-                title="Calendar View"
-                subtitle="View appointments in calendar"
-                icon="•"
-                onPress={() => router.push('/calendar' as any)}
-              />
-              <Separator />
-              <MenuOption
                 title="Change Password"
                 subtitle="Update your account password"
                 icon="•"
